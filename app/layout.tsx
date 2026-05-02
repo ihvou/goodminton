@@ -4,10 +4,37 @@ import './globals.css';
 import { Header } from '@/components/header';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'https://goodminton.vercel.app');
+const description =
+  'Track Goodminton club badminton matches, scores, player ratings, and team standings.';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: 'Goodminton',
-  description: 'Badminton scores and ratings for the club',
+  description,
+  applicationName: 'Goodminton',
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    title: 'Goodminton',
+    description,
+    url: '/',
+    siteName: 'Goodminton',
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Goodminton',
+    description,
+  },
 };
 
 export const viewport: Viewport = {

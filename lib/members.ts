@@ -16,6 +16,7 @@ export const MEMBERS: readonly Member[] = [
   { id: 'mao', name: 'Mao' },
   { id: 'scott', name: 'Scott', avatar: '/avatars/scott.jpg' },
   { id: 'johan', name: 'Johan' },
+  { id: 'vincent', name: 'Vincent', avatar: '/avatars/vincent.jpg' },
 ] as const;
 
 const BY_ID: Record<string, Member> = Object.fromEntries(

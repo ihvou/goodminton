@@ -39,7 +39,7 @@ export function LoginForm() {
     <form onSubmit={onSubmit} className="space-y-4">
       <div>
         <label className="mb-1.5 block text-xs font-medium text-neutral-500">
-          Email or phone
+          User name
         </label>
         <input
           type="text"

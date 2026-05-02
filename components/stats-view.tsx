@@ -19,7 +19,6 @@ type View = 'players' | 'teams';
 export function StatsView({ allMatches }: { allMatches: MatchWithDate[] }) {
   const [view, setView] = useState<View>('players');
   const [period, setPeriod] = useState<Period>('all');
-  const [minMatches, setMinMatches] = useState<number>(1);
 
   const filtered = useMemo(
     () => filterByPeriod(allMatches, period),
@@ -27,17 +26,17 @@ export function StatsView({ allMatches }: { allMatches: MatchWithDate[] }) {
   );
   const playerRows = useMemo(
     () =>
-      computePlayerStats(filtered)
-        .filter((s) => s.matches >= minMatches)
-        .sort((a, b) => b.winRate - a.winRate || b.matches - a.matches),
-    [filtered, minMatches],
+      computePlayerStats(filtered).sort(
+        (a, b) => b.winRate - a.winRate || b.matches - a.matches,
+      ),
+    [filtered],
   );
   const teamRows = useMemo(
     () =>
-      computeTeamStats(filtered)
-        .filter((s) => s.matches >= minMatches)
-        .sort((a, b) => b.wins - a.wins || b.winRate - a.winRate),
-    [filtered, minMatches],
+      computeTeamStats(filtered).sort(
+        (a, b) => b.wins - a.wins || b.winRate - a.winRate,
+      ),
+    [filtered],
   );
 
   return (
@@ -50,26 +49,15 @@ export function StatsView({ allMatches }: { allMatches: MatchWithDate[] }) {
         value={view}
         onChange={(v) => setView(v as View)}
       />
-      <div className="flex flex-wrap gap-2">
-        <Pills
-          options={[
-            { value: 'all', label: 'All time' },
-            { value: 'month', label: 'This month' },
-            { value: '30days', label: 'Last 30 days' },
-          ]}
-          value={period}
-          onChange={(v) => setPeriod(v as Period)}
-        />
-        <Pills
-          options={[
-            { value: '1', label: 'Min 1' },
-            { value: '5', label: 'Min 5' },
-            { value: '10', label: 'Min 10' },
-          ]}
-          value={String(minMatches)}
-          onChange={(v) => setMinMatches(parseInt(v, 10))}
-        />
-      </div>
+      <Pills
+        options={[
+          { value: 'all', label: 'All time' },
+          { value: 'month', label: 'This month' },
+          { value: '30days', label: 'Last 30 days' },
+        ]}
+        value={period}
+        onChange={(v) => setPeriod(v as Period)}
+      />
 
       {view === 'players' ? (
         <PlayerTable rows={playerRows} totalMatches={filtered.length} />
@@ -121,7 +109,7 @@ function PlayerTable({
   if (rows.length === 0)
     return (
       <p className="pt-8 text-center text-sm text-neutral-500">
-        No players meet the minimum threshold.
+        No player stats yet.
       </p>
     );
   return (
@@ -133,6 +121,7 @@ function PlayerTable({
             <th className="px-1.5 py-2 text-right tabular-nums">M</th>
             <th className="px-1.5 py-2 text-right tabular-nums">W–L</th>
             <th className="px-1.5 py-2 text-right tabular-nums">Win%</th>
+            <th className="px-1.5 py-2 text-right tabular-nums">Pts</th>
             <th className="py-2 pr-3 pl-1.5 text-right tabular-nums">Avg</th>
           </tr>
         </thead>
@@ -162,6 +151,9 @@ function PlayerTable({
                 <td className="px-1.5 py-2.5 text-right font-semibold tabular-nums">
                   {Math.round(row.winRate * 100)}%
                 </td>
+                <td className="px-1.5 py-2.5 text-right tabular-nums text-neutral-700">
+                  {row.totalPoints}
+                </td>
                 <td className="py-2.5 pr-3 pl-1.5 text-right tabular-nums text-neutral-700">
                   {row.avgPoints.toFixed(1)}
                 </td>
@@ -185,7 +177,7 @@ function TeamTable({
   if (rows.length === 0)
     return (
       <p className="pt-8 text-center text-sm text-neutral-500">
-        No teams meet the minimum threshold.
+        No team stats yet.
       </p>
     );
   return (
@@ -197,6 +189,7 @@ function TeamTable({
             <th className="px-1.5 py-2 text-right tabular-nums">M</th>
             <th className="px-1.5 py-2 text-right tabular-nums">W–L</th>
             <th className="px-1.5 py-2 text-right tabular-nums">Win%</th>
+            <th className="px-1.5 py-2 text-right tabular-nums">Pts</th>
             <th className="py-2 pr-3 pl-1.5 text-right tabular-nums">Avg</th>
           </tr>
         </thead>
@@ -239,6 +232,9 @@ function TeamTable({
                 </td>
                 <td className="px-1.5 py-2.5 text-right font-semibold tabular-nums">
                   {Math.round(row.winRate * 100)}%
+                </td>
+                <td className="px-1.5 py-2.5 text-right tabular-nums text-neutral-700">
+                  {row.totalPoints}
                 </td>
                 <td className="py-2.5 pr-3 pl-1.5 text-right tabular-nums text-neutral-700">
                   {row.avgPoints.toFixed(1)}

@@ -10,7 +10,6 @@ const PLACEHOLDER =
 const url = process.env.DATABASE_URL || PLACEHOLDER;
 
 if (!process.env.DATABASE_URL && process.env.NODE_ENV !== 'production') {
-  // eslint-disable-next-line no-console
   console.warn('[goodminton] DATABASE_URL not set — queries will fail.');
 }
 

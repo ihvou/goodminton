@@ -82,43 +82,41 @@ export function DraftMatchCard({
   const scoreARef = useRef<HTMLInputElement>(null);
   const scoreBRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    pickSlot('teamAP1', EMPTY);
-    return () => closePicker();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function pickSlot(slot: Slot, snapshot: Draft) {
+  function openSlotPicker(slot: Slot, snapshot: Draft) {
     setActive(slot);
     openPicker({
       excludeIds: buildExclude(snapshot, slot),
       selectedId: snapshot[slot],
-      onPick: (member) => onPicked(slot, member, snapshot),
+      onPick: (member) => {
+        const newDraft = { ...snapshot, [slot]: member.id };
+        setDraft(newDraft);
+        const next = nextEmpty(newDraft);
+        if (next === null) {
+          closePicker();
+          tryAutoSave(newDraft);
+        } else if (next === 'scoreA' || next === 'scoreB') {
+          closePicker();
+          setActive(next);
+          requestAnimationFrame(() => {
+            const ref = next === 'scoreA' ? scoreARef : scoreBRef;
+            ref.current?.focus();
+            ref.current?.select();
+          });
+        } else {
+          openSlotPicker(next, newDraft);
+        }
+      },
     });
   }
 
-  function onPicked(slot: Slot, member: Member, snapshot: Draft) {
-    const newDraft = { ...snapshot, [slot]: member.id };
-    setDraft(newDraft);
-    const next = nextEmpty(newDraft);
-    if (next === null) {
-      closePicker();
-      tryAutoSave(newDraft);
-    } else if (next === 'scoreA' || next === 'scoreB') {
-      closePicker();
-      setActive(next);
-      requestAnimationFrame(() => {
-        const ref = next === 'scoreA' ? scoreARef : scoreBRef;
-        ref.current?.focus();
-        ref.current?.select();
-      });
-    } else {
-      pickSlot(next, newDraft);
-    }
-  }
+  useEffect(() => {
+    openSlotPicker('teamAP1', EMPTY);
+    return () => closePicker();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function onTapSlot(slot: Slot) {
-    pickSlot(slot, draft);
+    openSlotPicker(slot, draft);
   }
 
   function onScoreChange(side: 'A' | 'B', v: string) {
@@ -144,7 +142,7 @@ export function DraftMatchCard({
         ref.current?.select();
       });
     } else {
-      pickSlot(next, current);
+      openSlotPicker(next, current);
     }
   }
 

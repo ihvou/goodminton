@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { MEMBERS, type Member } from '@/lib/members';
@@ -8,6 +8,9 @@ import { Avatar } from './avatar';
 import { cn } from '@/lib/utils';
 
 const SORTED = [...MEMBERS].sort((a, b) => a.name.localeCompare(b.name));
+const noopSubscribe = () => () => {};
+const clientSnapshot = () => true;
+const serverSnapshot = () => false;
 
 export function MemberPicker({
   open,
@@ -22,8 +25,11 @@ export function MemberPicker({
   onPick: (member: Member) => void;
   onClose: () => void;
 }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(
+    noopSubscribe,
+    clientSnapshot,
+    serverSnapshot,
+  );
 
   useEffect(() => {
     if (!open) return;

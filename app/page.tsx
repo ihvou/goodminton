@@ -19,20 +19,25 @@ export default async function HomePage({
 }) {
   const params = await searchParams;
   const today = todayIso();
-  const selectedDate = params.d ?? today;
 
-  const [dayCounts, matches, admin] = await Promise.all([
+  const [dayCounts, admin] = await Promise.all([
     loadDayCounts(),
-    loadDayMatches(selectedDate),
     isAdmin(),
   ]);
+  const matchDates = Array.from(dayCounts.entries())
+    .filter(([, count]) => count > 0)
+    .map(([iso]) => iso);
+  const sortedMatchDates = [...matchDates].sort();
+  const latestMatchDate = sortedMatchDates[sortedMatchDates.length - 1];
+  const selectedDate = params.d ?? latestMatchDate ?? today;
+  const matches = await loadDayMatches(selectedDate);
 
   // Build the day strip:
-  //  - past play dates with games (left)
+  //  - play dates with games (left)
   //  - this week's M/W/F (center)
   //  - next 2 upcoming play days (right)
-  //  - selected date + today, always present
-  const pastDates = Array.from(dayCounts.keys()).filter((iso) => isPast(iso));
+  //  - selected date, always present
+  const pastDates = matchDates.filter((iso) => isPast(iso));
   const thisWeek = currentWeekPlayDays().map(toIsoDate);
   const upcoming = upcomingPlayDays(fromIsoDate(today), 2).map(toIsoDate);
   const allDates = new Set<string>([
@@ -40,7 +45,6 @@ export default async function HomePage({
     ...thisWeek,
     ...upcoming,
     selectedDate,
-    today,
   ]);
   const dayList = Array.from(allDates)
     .sort()

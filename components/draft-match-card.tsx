@@ -64,12 +64,14 @@ type PickerArgs = {
 
 export function DraftMatchCard({
   playDate,
+  members,
   onCancel,
   onSaved,
   openPicker,
   closePicker,
 }: {
   playDate: string;
+  members: Member[];
   onCancel: () => void;
   onSaved: () => void;
   openPicker: (args: PickerArgs) => void;
@@ -81,6 +83,16 @@ export function DraftMatchCard({
   const [pending, startTransition] = useTransition();
   const scoreARef = useRef<HTMLInputElement>(null);
   const scoreBRef = useRef<HTMLInputElement>(null);
+
+  function focusScore(field: 'scoreA' | 'scoreB') {
+    const ref = field === 'scoreA' ? scoreARef : scoreBRef;
+    ref.current?.focus();
+    ref.current?.select();
+    requestAnimationFrame(() => {
+      ref.current?.focus();
+      ref.current?.select();
+    });
+  }
 
   function openSlotPicker(slot: Slot, snapshot: Draft) {
     setActive(slot);
@@ -95,13 +107,9 @@ export function DraftMatchCard({
           closePicker();
           tryAutoSave(newDraft);
         } else if (next === 'scoreA' || next === 'scoreB') {
-          closePicker();
           setActive(next);
-          requestAnimationFrame(() => {
-            const ref = next === 'scoreA' ? scoreARef : scoreBRef;
-            ref.current?.focus();
-            ref.current?.select();
-          });
+          focusScore(next);
+          closePicker();
         } else {
           openSlotPicker(next, newDraft);
         }
@@ -136,11 +144,7 @@ export function DraftMatchCard({
       tryAutoSave(current);
     } else if (next === 'scoreA' || next === 'scoreB') {
       setActive(next);
-      requestAnimationFrame(() => {
-        const ref = next === 'scoreA' ? scoreARef : scoreBRef;
-        ref.current?.focus();
-        ref.current?.select();
-      });
+      focusScore(next);
     } else {
       openSlotPicker(next, current);
     }
@@ -204,6 +208,7 @@ export function DraftMatchCard({
         onTapSlot={onTapSlot}
         onScoreChange={(v) => onScoreChange('A', v)}
         onScoreCommit={() => onScoreCommit('A')}
+        members={members}
       />
       <div className="my-2 h-px bg-neutral-100" />
       <DraftRow
@@ -217,6 +222,7 @@ export function DraftMatchCard({
         onTapSlot={onTapSlot}
         onScoreChange={(v) => onScoreChange('B', v)}
         onScoreCommit={() => onScoreCommit('B')}
+        members={members}
       />
       {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
     </article>
@@ -234,6 +240,7 @@ function DraftRow({
   onTapSlot,
   onScoreChange,
   onScoreCommit,
+  members,
 }: {
   label: 'A' | 'B';
   slot1: Slot;
@@ -245,6 +252,7 @@ function DraftRow({
   onTapSlot: (slot: Slot) => void;
   onScoreChange: (v: string) => void;
   onScoreCommit: () => void;
+  members: Member[];
 }) {
   return (
     <div className="flex items-center gap-3">
@@ -254,11 +262,13 @@ function DraftRow({
           memberId={draft[slot1]}
           isActive={active === slot1}
           onTap={() => onTapSlot(slot1)}
+          members={members}
         />
         <DraftSlot
           memberId={draft[slot2]}
           isActive={active === slot2}
           onTap={() => onTapSlot(slot2)}
+          members={members}
         />
       </div>
       <input
@@ -294,13 +304,15 @@ function DraftSlot({
   memberId,
   isActive,
   onTap,
+  members,
 }: {
   memberId: string | null;
   isActive: boolean;
   onTap: () => void;
+  members: Member[];
 }) {
   if (memberId) {
-    const member = getMemberOrFallback(memberId);
+    const member = getMemberOrFallback(memberId, members);
     return (
       <button
         type="button"

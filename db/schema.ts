@@ -8,7 +8,17 @@ import {
   timestamp,
   index,
   check,
+  boolean,
 } from 'drizzle-orm/pg-core';
+
+export const members = pgTable('members', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  avatar: text('avatar'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const playSessions = pgTable('play_sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -52,3 +62,5 @@ export const matches = pgTable(
 export type PlaySession = typeof playSessions.$inferSelect;
 export type Match = typeof matches.$inferSelect;
 export type NewMatch = typeof matches.$inferInsert;
+export type Member = typeof members.$inferSelect;
+export type NewMember = typeof members.$inferInsert;

@@ -1,25 +1,26 @@
 'use client';
 
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import { MEMBERS, type Member } from '@/lib/members';
+import { sortMembers, type Member } from '@/lib/members';
 import { Avatar } from './avatar';
 import { cn } from '@/lib/utils';
 
-const SORTED = [...MEMBERS].sort((a, b) => a.name.localeCompare(b.name));
 const noopSubscribe = () => () => {};
 const clientSnapshot = () => true;
 const serverSnapshot = () => false;
 
 export function MemberPicker({
   open,
+  members,
   excludeIds,
   selectedId,
   onPick,
   onClose,
 }: {
   open: boolean;
+  members: Member[];
   excludeIds: string[];
   selectedId: string | null;
   onPick: (member: Member) => void;
@@ -30,6 +31,7 @@ export function MemberPicker({
     clientSnapshot,
     serverSnapshot,
   );
+  const sorted = useMemo(() => sortMembers(members), [members]);
 
   useEffect(() => {
     if (!open) return;
@@ -73,7 +75,7 @@ export function MemberPicker({
           </button>
         </div>
         <div className="grid max-h-[70vh] grid-cols-2 gap-1 overflow-y-auto px-3 pb-5">
-          {SORTED.map((member) => {
+          {sorted.map((member) => {
             const disabled = excludeSet.has(member.id);
             const selected = selectedId === member.id;
             return (

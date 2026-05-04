@@ -1,5 +1,5 @@
 import { isAdmin } from '@/lib/auth';
-import { loadDayCounts, loadDayMatches } from '@/lib/queries';
+import { loadDayCounts, loadDayMatches, loadMembers } from '@/lib/queries';
 import {
   todayIso,
   currentWeekPlayDays,
@@ -7,6 +7,7 @@ import {
   toIsoDate,
   isPast,
   fromIsoDate,
+  latestPlayDayOnOrBefore,
 } from '@/lib/dates';
 import { MatchesView } from '@/components/matches-view';
 
@@ -20,16 +21,18 @@ export default async function HomePage({
   const params = await searchParams;
   const today = todayIso();
 
-  const [dayCounts, admin] = await Promise.all([
+  const [dayCounts, admin, members] = await Promise.all([
     loadDayCounts(),
     isAdmin(),
+    loadMembers(),
   ]);
   const matchDates = Array.from(dayCounts.entries())
     .filter(([, count]) => count > 0)
     .map(([iso]) => iso);
   const sortedMatchDates = [...matchDates].sort();
   const latestMatchDate = sortedMatchDates[sortedMatchDates.length - 1];
-  const selectedDate = params.d ?? latestMatchDate ?? today;
+  const fallbackDate = toIsoDate(latestPlayDayOnOrBefore(fromIsoDate(today)));
+  const selectedDate = params.d ?? latestMatchDate ?? fallbackDate;
   const matches = await loadDayMatches(selectedDate);
 
   // Build the day strip:
@@ -55,6 +58,7 @@ export default async function HomePage({
       selectedDate={selectedDate}
       dayList={dayList}
       matches={matches}
+      members={members}
       isAdmin={admin}
     />
   );

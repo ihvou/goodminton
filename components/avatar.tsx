@@ -20,12 +20,14 @@ export function Avatar({
 }) {
   const s = SIZES[size];
   if (member.avatar) {
+    const isDataUrl = member.avatar.startsWith('data:');
     return (
       <Image
         src={member.avatar}
         alt={member.name}
         width={s.px * 2}
         height={s.px * 2}
+        unoptimized={isDataUrl}
         className={cn('rounded-full object-cover', s.class, className)}
       />
     );

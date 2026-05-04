@@ -9,11 +9,12 @@ const TABS = [
   { href: '/stats', label: 'Stats' },
 ];
 
-export function TabNav() {
+export function TabNav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
+  const tabs = isAdmin ? [...TABS, { href: '/players', label: 'Players' }] : TABS;
   return (
     <nav className="mx-auto flex max-w-screen-md items-center gap-6 px-4">
-      {TABS.map((tab) => {
+      {tabs.map((tab) => {
         const active =
           tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href);
         return (

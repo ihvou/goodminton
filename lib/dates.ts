@@ -76,3 +76,11 @@ export function upcomingPlayDays(after: Date, count: number): Date[] {
   }
   return out;
 }
+
+export function latestPlayDayOnOrBefore(date: Date): Date {
+  let cursor = date;
+  while (!isPlayDay(cursor)) {
+    cursor = addDays(cursor, -1);
+  }
+  return cursor;
+}

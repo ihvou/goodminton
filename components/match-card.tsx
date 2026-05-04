@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { MoreHorizontal, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import type { DayMatch } from '@/lib/queries';
 import { getMemberOrFallback, type Member } from '@/lib/members';
 import { Avatar } from './avatar';
@@ -14,12 +14,14 @@ const SLOTS: Slot[] = ['teamAP1', 'teamAP2', 'teamBP1', 'teamBP2'];
 export function MatchCard({
   match,
   playDate,
+  members,
   isAdmin,
   openPicker,
   closePicker,
 }: {
   match: DayMatch;
   playDate: string;
+  members: Member[];
   isAdmin: boolean;
   openPicker: (args: {
     excludeIds: string[];
@@ -29,7 +31,6 @@ export function MatchCard({
   closePicker: () => void;
 }) {
   const [pending, startTransition] = useTransition();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const aWon = match.scoreA > match.scoreB;
 
@@ -72,7 +73,6 @@ export function MatchCard({
   }
 
   function onDelete() {
-    setMenuOpen(false);
     if (!confirm('Delete this match? Stats will recalculate.')) return;
     startTransition(async () => {
       try {
@@ -100,6 +100,7 @@ export function MatchCard({
         onTapP2={() => tapSlot('teamAP2')}
         onScoreChange={(v) => setScore('A', v)}
         editable={isAdmin}
+        members={members}
       />
       <div className="my-2 h-px bg-neutral-100" />
       <TeamRow
@@ -112,38 +113,19 @@ export function MatchCard({
         onTapP2={() => tapSlot('teamBP2')}
         onScoreChange={(v) => setScore('B', v)}
         editable={isAdmin}
+        members={members}
       />
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       {isAdmin && (
-        <div className="absolute right-3 top-3">
+        <div className="mt-3 flex justify-end">
           <button
             type="button"
-            onClick={() => setMenuOpen((o) => !o)}
-            className="rounded-full p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
-            aria-label="Match options"
+            onClick={onDelete}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
           >
-            <MoreHorizontal size={16} />
+            <Trash2 size={13} />
+            Delete
           </button>
-          {menuOpen && (
-            <>
-              <button
-                type="button"
-                aria-label="Close menu"
-                onClick={() => setMenuOpen(false)}
-                className="fixed inset-0 z-10 cursor-default"
-              />
-              <div className="absolute right-0 top-full z-20 mt-1 min-w-[160px] rounded-xl border border-neutral-200 bg-white p-1 shadow-lg">
-                <button
-                  type="button"
-                  onClick={onDelete}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-neutral-100"
-                >
-                  <Trash2 size={14} />
-                  Delete match
-                </button>
-              </div>
-            </>
-          )}
         </div>
       )}
     </article>
@@ -160,6 +142,7 @@ function TeamRow({
   onTapP2,
   onScoreChange,
   editable,
+  members,
 }: {
   label: 'A' | 'B';
   won: boolean;
@@ -170,9 +153,10 @@ function TeamRow({
   onTapP2: () => void;
   onScoreChange: (v: number) => void;
   editable: boolean;
+  members: Member[];
 }) {
-  const p1 = getMemberOrFallback(p1Id);
-  const p2 = getMemberOrFallback(p2Id);
+  const p1 = getMemberOrFallback(p1Id, members);
+  const p2 = getMemberOrFallback(p2Id, members);
   return (
     <div className={cn('flex items-center gap-3', won && 'font-semibold')}>
       <span

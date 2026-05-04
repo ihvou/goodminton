@@ -21,11 +21,13 @@ export function MatchesView({
   selectedDate,
   dayList,
   matches,
+  members,
   isAdmin,
 }: {
   selectedDate: string;
   dayList: DayItem[];
   matches: DayMatch[];
+  members: Member[];
   isAdmin: boolean;
 }) {
   const router = useRouter();
@@ -85,6 +87,7 @@ export function MatchesView({
             key={m.id}
             match={m}
             playDate={selectedDate}
+            members={members}
             isAdmin={isAdmin}
             openPicker={openPicker}
             closePicker={closePicker}
@@ -94,6 +97,7 @@ export function MatchesView({
           <DraftMatchCard
             key={draftId}
             playDate={selectedDate}
+            members={members}
             onCancel={() => removeDraft(draftId)}
             onSaved={() => removeDraft(draftId)}
             openPicker={openPicker}
@@ -121,6 +125,7 @@ export function MatchesView({
 
       <MemberPicker
         open={picker !== null}
+        members={members}
         excludeIds={picker?.excludeIds ?? []}
         selectedId={picker?.selectedId ?? null}
         onPick={(member) => picker?.onPick(member)}

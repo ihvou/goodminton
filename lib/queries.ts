@@ -1,7 +1,12 @@
 import 'server-only';
 import { db } from '@/db';
-import { playSessions, matches } from '@/db/schema';
+import { playSessions, matches, members } from '@/db/schema';
 import { eq, asc, sql } from 'drizzle-orm';
+import {
+  DEFAULT_MEMBERS,
+  sortMembers,
+  type Member,
+} from '@/lib/members';
 
 export type DayMatch = {
   id: string;
@@ -17,6 +22,36 @@ export type DayMatch = {
 export type MatchWithDate = DayMatch & {
   playDate: string;
 };
+
+export async function loadMembers(): Promise<Member[]> {
+  const rows = await db
+    .select({
+      id: members.id,
+      name: members.name,
+      avatar: members.avatar,
+      isActive: members.isActive,
+    })
+    .from(members)
+    .orderBy(asc(members.name));
+
+  const byId = new Map<string, Member>(
+    DEFAULT_MEMBERS.map((m) => [m.id, { ...m }]),
+  );
+
+  for (const row of rows) {
+    if (!row.isActive) {
+      byId.delete(row.id);
+      continue;
+    }
+    byId.set(row.id, {
+      id: row.id,
+      name: row.name,
+      avatar: row.avatar,
+    });
+  }
+
+  return sortMembers(Array.from(byId.values()));
+}
 
 export async function loadDayMatches(playDate: string): Promise<DayMatch[]> {
   const session = await db.query.playSessions.findFirst({

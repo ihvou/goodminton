@@ -33,7 +33,7 @@ export async function Header() {
           </Link>
         )}
       </div>
-      <TabNav />
+      <TabNav isAdmin={admin} />
     </header>
   );
 }

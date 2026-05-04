@@ -1,10 +1,10 @@
 export type Member = {
   id: string;
   name: string;
-  avatar?: string;
+  avatar?: string | null;
 };
 
-export const MEMBERS: readonly Member[] = [
+export const DEFAULT_MEMBERS: readonly Member[] = [
   { id: 'tsugi', name: 'Tsugi', avatar: '/avatars/tsugi.jpg' },
   { id: 'rahmad', name: 'Rahmad', avatar: '/avatars/rahmad.jpg' },
   { id: 'hadrien', name: 'Hadrien', avatar: '/avatars/hadrien.jpg' },
@@ -19,14 +19,30 @@ export const MEMBERS: readonly Member[] = [
   { id: 'vincent', name: 'Vincent', avatar: '/avatars/vincent.jpg' },
 ] as const;
 
-const BY_ID: Record<string, Member> = Object.fromEntries(
-  MEMBERS.map((m) => [m.id, m]),
-);
+export const MEMBERS = DEFAULT_MEMBERS;
 
-export function getMember(id: string): Member | undefined {
-  return BY_ID[id];
+export function sortMembers(members: readonly Member[]): Member[] {
+  return [...members].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function getMemberOrFallback(id: string): Member {
-  return BY_ID[id] ?? { id, name: id };
+export function memberMap(members: readonly Member[]): Map<string, Member> {
+  return new Map(members.map((m) => [m.id, m]));
+}
+
+export function getMember(
+  id: string,
+  members: readonly Member[] = DEFAULT_MEMBERS,
+): Member | undefined {
+  return memberMap(members).get(id);
+}
+
+export function getMemberOrFallback(
+  id: string,
+  members: readonly Member[] = DEFAULT_MEMBERS,
+): Member {
+  return getMember(id, members) ?? { id, name: id };
+}
+
+export function isDefaultMember(id: string): boolean {
+  return DEFAULT_MEMBERS.some((m) => m.id === id);
 }

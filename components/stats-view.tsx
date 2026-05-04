@@ -10,13 +10,20 @@ import {
   type PlayerStats,
   type TeamStats,
 } from '@/lib/stats';
+import type { Member } from '@/lib/members';
 import { getMemberOrFallback } from '@/lib/members';
 import { Avatar } from './avatar';
 import { cn } from '@/lib/utils';
 
 type View = 'players' | 'teams';
 
-export function StatsView({ allMatches }: { allMatches: MatchWithDate[] }) {
+export function StatsView({
+  allMatches,
+  members,
+}: {
+  allMatches: MatchWithDate[];
+  members: Member[];
+}) {
   const [view, setView] = useState<View>('players');
   const [period, setPeriod] = useState<Period>('all');
 
@@ -60,9 +67,17 @@ export function StatsView({ allMatches }: { allMatches: MatchWithDate[] }) {
       />
 
       {view === 'players' ? (
-        <PlayerTable rows={playerRows} totalMatches={filtered.length} />
+        <PlayerTable
+          rows={playerRows}
+          totalMatches={filtered.length}
+          members={members}
+        />
       ) : (
-        <TeamTable rows={teamRows} totalMatches={filtered.length} />
+        <TeamTable
+          rows={teamRows}
+          totalMatches={filtered.length}
+          members={members}
+        />
       )}
     </div>
   );
@@ -101,9 +116,11 @@ function Pills({
 function PlayerTable({
   rows,
   totalMatches,
+  members,
 }: {
   rows: PlayerStats[];
   totalMatches: number;
+  members: Member[];
 }) {
   if (totalMatches === 0) return <Empty />;
   if (rows.length === 0)
@@ -127,7 +144,7 @@ function PlayerTable({
         </thead>
         <tbody>
           {rows.map((row, i) => {
-            const m = getMemberOrFallback(row.memberId);
+            const m = getMemberOrFallback(row.memberId, members);
             return (
               <tr
                 key={row.memberId}
@@ -169,9 +186,11 @@ function PlayerTable({
 function TeamTable({
   rows,
   totalMatches,
+  members,
 }: {
   rows: TeamStats[];
   totalMatches: number;
+  members: Member[];
 }) {
   if (totalMatches === 0) return <Empty />;
   if (rows.length === 0)
@@ -195,8 +214,8 @@ function TeamTable({
         </thead>
         <tbody>
           {rows.map((row, i) => {
-            const a = getMemberOrFallback(row.memberA);
-            const b = getMemberOrFallback(row.memberB);
+            const a = getMemberOrFallback(row.memberA, members);
+            const b = getMemberOrFallback(row.memberB, members);
             return (
               <tr
                 key={row.pairKey}

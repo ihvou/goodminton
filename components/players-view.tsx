@@ -18,11 +18,54 @@ type Draft = {
   avatar: string | null;
 };
 
+const MAX_SOURCE_IMAGE_BYTES = 20_000_000;
+const MAX_AVATAR_DATA_URL_LENGTH = 1_400_000;
+const AVATAR_MAX_SIDE = 512;
+const AVATAR_QUALITY = 0.82;
+
 const EMPTY_DRAFT: Draft = {
   id: null,
   name: '',
   avatar: null,
 };
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Could not read avatar image'));
+    image.src = src;
+  });
+}
+
+async function resizeAvatar(file: File): Promise<string> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await loadImage(objectUrl);
+    const width = image.naturalWidth || image.width;
+    const height = image.naturalHeight || image.height;
+    if (width < 1 || height < 1) throw new Error('Could not read avatar image');
+
+    const scale = Math.min(1, AVATAR_MAX_SIDE / Math.max(width, height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Could not resize avatar image');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    const avatar = canvas.toDataURL('image/jpeg', AVATAR_QUALITY);
+    if (avatar.length > MAX_AVATAR_DATA_URL_LENGTH) {
+      throw new Error('Avatar image is too large');
+    }
+    return avatar;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 export function PlayersView({ members }: { members: Member[] }) {
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -33,6 +76,7 @@ export function PlayersView({ members }: { members: Member[] }) {
   const [playingPendingIds, setPlayingPendingIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [pending, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
   const sorted = sortMembers(members);
@@ -54,28 +98,30 @@ export function PlayersView({ members }: { members: Member[] }) {
     setError(null);
   }
 
-  function onAvatarFile(file: File | undefined) {
+  async function onAvatarFile(file: File | undefined) {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setError('Avatar must be an image');
       return;
     }
-    if (file.size > 1_000_000) {
-      setError('Avatar image is too large');
+    if (file.size > MAX_SOURCE_IMAGE_BYTES) {
+      setError('Photo is too large to process');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') return;
-      setDraft((d) => (d ? { ...d, avatar: reader.result as string } : d));
+    setAvatarBusy(true);
+    try {
+      const avatar = await resizeAvatar(file);
+      setDraft((d) => (d ? { ...d, avatar } : d));
       setError(null);
-    };
-    reader.onerror = () => setError('Could not read avatar image');
-    reader.readAsDataURL(file);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not resize avatar image');
+    } finally {
+      setAvatarBusy(false);
+    }
   }
 
   function saveDraft() {
-    if (!draft || pending) return;
+    if (!draft || pending || avatarBusy) return;
     setError(null);
     startTransition(async () => {
       try {
@@ -173,10 +219,11 @@ export function PlayersView({ members }: { members: Member[] }) {
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-medium text-neutral-700"
+                  disabled={avatarBusy}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-medium text-neutral-700 disabled:opacity-50"
                 >
                   <ImagePlus size={14} />
-                  Avatar
+                  {avatarBusy ? 'Preparing...' : 'Avatar'}
                 </button>
                 {draft.avatar && (
                   <button
@@ -193,7 +240,10 @@ export function PlayersView({ members }: { members: Member[] }) {
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => onAvatarFile(e.currentTarget.files?.[0])}
+                onChange={(e) => {
+                  void onAvatarFile(e.currentTarget.files?.[0]);
+                  e.currentTarget.value = '';
+                }}
               />
             </div>
             <button
@@ -226,10 +276,16 @@ export function PlayersView({ members }: { members: Member[] }) {
           <button
             type="button"
             onClick={saveDraft}
-            disabled={pending}
+            disabled={pending || avatarBusy}
             className="mt-4 w-full rounded-xl bg-neutral-950 py-3 text-sm font-semibold text-white transition disabled:opacity-50"
           >
-            {pending ? 'Saving...' : draft.id ? 'Save player' : 'Add player'}
+            {avatarBusy
+              ? 'Preparing...'
+              : pending
+                ? 'Saving...'
+                : draft.id
+                  ? 'Save player'
+                  : 'Add player'}
           </button>
         </section>
       )}

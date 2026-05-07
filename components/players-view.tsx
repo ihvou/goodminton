@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useTransition } from 'react';
-import { ImagePlus, Plus, Trash2, X } from 'lucide-react';
+import { Circle, CircleCheck, ImagePlus, Plus, Trash2, X } from 'lucide-react';
 import {
   createMember,
   deleteMember,
@@ -27,10 +27,18 @@ const EMPTY_DRAFT: Draft = {
 export function PlayersView({ members }: { members: Member[] }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [playingOverrides, setPlayingOverrides] = useState<
+    Record<string, boolean>
+  >({});
+  const [playingPendingIds, setPlayingPendingIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [pending, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
   const sorted = sortMembers(members);
-  const playingCount = sorted.filter((member) => member.isPlaying).length;
+  const isMemberPlaying = (member: Member) =>
+    playingOverrides[member.id] ?? member.isPlaying;
+  const playingCount = sorted.filter(isMemberPlaying).length;
 
   function startAdd() {
     setDraft(EMPTY_DRAFT);
@@ -104,15 +112,28 @@ export function PlayersView({ members }: { members: Member[] }) {
   }
 
   function setPlaying(member: Member, isPlaying: boolean) {
-    if (pending) return;
+    if (playingPendingIds.has(member.id)) return;
     setError(null);
-    startTransition(async () => {
+    setPlayingOverrides((overrides) => ({ ...overrides, [member.id]: isPlaying }));
+    setPlayingPendingIds((ids) => new Set(ids).add(member.id));
+
+    void (async () => {
       try {
         await updateMemberPlaying({ id: member.id, isPlaying });
       } catch (e) {
+        setPlayingOverrides((overrides) => ({
+          ...overrides,
+          [member.id]: member.isPlaying,
+        }));
         setError(e instanceof Error ? e.message : 'Failed to update player');
+      } finally {
+        setPlayingPendingIds((ids) => {
+          const next = new Set(ids);
+          next.delete(member.id);
+          return next;
+        });
       }
-    });
+    })();
   }
 
   return (
@@ -216,48 +237,61 @@ export function PlayersView({ members }: { members: Member[] }) {
       {!draft && error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="space-y-2">
-        {sorted.map((member) => (
-          <article
-            key={member.id}
-            className={cn(
-              'flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3 transition',
-              !member.isPlaying && 'bg-neutral-50 text-neutral-500',
-            )}
-          >
-            <label className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white">
-              <input
-                type="checkbox"
-                checked={member.isPlaying}
+        {sorted.map((member) => {
+          const isPlaying = isMemberPlaying(member);
+          const isSavingPlaying = playingPendingIds.has(member.id);
+          return (
+            <article
+              key={member.id}
+              className={cn(
+                'flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3 transition',
+                !isPlaying && 'bg-neutral-50 text-neutral-500',
+              )}
+            >
+              <button
+                type="button"
+                aria-pressed={isPlaying}
+                aria-label={
+                  isPlaying
+                    ? `Mark ${member.name} as not playing today`
+                    : `Mark ${member.name} as playing today`
+                }
+                onClick={() => setPlaying(member, !isPlaying)}
+                disabled={isSavingPlaying}
+                className={cn(
+                  'flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition hover:bg-neutral-100 disabled:opacity-70',
+                  isPlaying ? 'text-emerald-600' : 'text-neutral-300',
+                )}
+              >
+                {isPlaying ? (
+                  <CircleCheck size={24} strokeWidth={2.4} />
+                ) : (
+                  <Circle size={24} strokeWidth={2.2} />
+                )}
+              </button>
+              <Avatar member={member} size="md" />
+              <button
+                type="button"
+                onClick={() => startEdit(member)}
+                className="min-w-0 flex-1 text-left"
+              >
+                <div className="truncate text-sm font-medium">{member.name}</div>
+                <div className="truncate text-xs text-neutral-400">
+                  {member.id} - {isPlaying ? 'Playing' : 'Out'}
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => removeMember(member)}
                 disabled={pending}
-                onChange={(e) => setPlaying(member, e.currentTarget.checked)}
-                className="h-4 w-4 accent-neutral-950 disabled:opacity-50"
-              />
-              <span className="sr-only">
-                {member.isPlaying ? 'Remove from playing list' : 'Add to playing list'}
-              </span>
-            </label>
-            <Avatar member={member} size="md" />
-            <button
-              type="button"
-              onClick={() => startEdit(member)}
-              className="min-w-0 flex-1 text-left"
-            >
-              <div className="truncate text-sm font-medium">{member.name}</div>
-              <div className="truncate text-xs text-neutral-400">
-                {member.id} - {member.isPlaying ? 'Playing' : 'Out'}
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => removeMember(member)}
-              disabled={pending}
-              className="rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:opacity-50"
-              aria-label={`Delete ${member.name}`}
-            >
-              <Trash2 size={16} />
-            </button>
-          </article>
-        ))}
+                className="rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                aria-label={`Delete ${member.name}`}
+              >
+                <Trash2 size={16} />
+              </button>
+            </article>
+          );
+        })}
       </div>
     </div>
   );

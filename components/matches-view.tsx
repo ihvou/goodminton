@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import type { DayMatch, MatchWithDate } from '@/lib/queries';
 import type { Member } from '@/lib/members';
+import type { LineupLike } from '@/lib/auto-teams';
 import { MemberPicker } from './member-picker';
 import { MatchCard } from './match-card';
 import { DraftMatchCard } from './draft-match-card';
@@ -42,6 +43,9 @@ export function MatchesView({
   const router = useRouter();
   const [picker, setPicker] = useState<PickerState>(null);
   const [drafts, setDrafts] = useState<string[]>([]);
+  const [draftLineups, setDraftLineups] = useState<Record<string, LineupLike>>(
+    {},
+  );
   const playingMembers = useMemo(
     () => members.filter((member) => member.isPlaying),
     [members],
@@ -65,12 +69,18 @@ export function MatchesView({
 
   function removeDraft(id: string) {
     setDrafts((d) => d.filter((x) => x !== id));
+    setDraftLineups((lineups) => {
+      const next = { ...lineups };
+      delete next[id];
+      return next;
+    });
     setPicker(null);
   }
 
   function onSelectDay(iso: string) {
     setPicker(null);
     setDrafts([]);
+    setDraftLineups({});
     if (iso === selectedDate) return;
     const params = new URLSearchParams();
     params.set('d', iso);
@@ -116,7 +126,20 @@ export function MatchesView({
             playDate={selectedDate}
             members={playingMembers}
             dayMatches={matches}
+            reservedLineups={Object.entries(draftLineups)
+              .filter(([id]) => id !== draftId)
+              .map(([, lineup]) => lineup)}
             allMatches={allMatches}
+            onLineupChange={(lineup) => {
+              setDraftLineups((lineups) => {
+                if (!lineup) {
+                  const next = { ...lineups };
+                  delete next[draftId];
+                  return next;
+                }
+                return { ...lineups, [draftId]: lineup };
+              });
+            }}
             onCancel={() => removeDraft(draftId)}
             onSaved={() => removeDraft(draftId)}
             openPicker={openPicker}

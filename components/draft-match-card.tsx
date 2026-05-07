@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { X } from 'lucide-react';
 import { getMemberOrFallback, type Member } from '@/lib/members';
 import type { DayMatch, MatchWithDate } from '@/lib/queries';
-import { suggestTeams } from '@/lib/auto-teams';
+import { suggestTeams, type LineupLike } from '@/lib/auto-teams';
 import { Avatar } from './avatar';
 import { cn } from '@/lib/utils';
 import { createMatch } from '@/lib/actions';
@@ -39,6 +39,16 @@ const EMPTY: Draft = {
   scoreB: '',
 };
 
+function draftLineup(d: Draft): LineupLike | null {
+  if (!d.teamAP1 || !d.teamAP2 || !d.teamBP1 || !d.teamBP2) return null;
+  return {
+    teamAP1: d.teamAP1,
+    teamAP2: d.teamAP2,
+    teamBP1: d.teamBP1,
+    teamBP2: d.teamBP2,
+  };
+}
+
 function nextEmpty(d: Draft): Field | null {
   for (const f of ORDER) {
     if (f === 'scoreA' || f === 'scoreB') {
@@ -71,7 +81,9 @@ export function DraftMatchCard({
   playDate,
   members,
   dayMatches,
+  reservedLineups,
   allMatches,
+  onLineupChange,
   onCancel,
   onSaved,
   openPicker,
@@ -80,7 +92,9 @@ export function DraftMatchCard({
   playDate: string;
   members: Member[];
   dayMatches: DayMatch[];
+  reservedLineups: LineupLike[];
   allMatches: MatchWithDate[];
+  onLineupChange: (lineup: LineupLike | null) => void;
   onCancel: () => void;
   onSaved: () => void;
   openPicker: (args: PickerArgs) => void;
@@ -114,6 +128,7 @@ export function DraftMatchCard({
       onPick: (member) => {
         const newDraft = { ...snapshot, [slot]: member.id };
         setDraft(newDraft);
+        onLineupChange(draftLineup(newDraft));
         const next = nextEmpty(newDraft);
         if (next === null) {
           closePicker();
@@ -132,7 +147,7 @@ export function DraftMatchCard({
   function applySuggestion(snapshot: Draft) {
     const suggestion = suggestTeams({
       members,
-      dayMatches,
+      dayLineups: [...dayMatches, ...reservedLineups],
       allMatches,
     });
 
@@ -149,6 +164,7 @@ export function DraftMatchCard({
       teamBP2: suggestion.teamB[1],
     };
     setDraft(newDraft);
+    onLineupChange(draftLineup(newDraft));
     setError(null);
 
     const next = nextEmpty(newDraft);
@@ -166,7 +182,10 @@ export function DraftMatchCard({
 
   useEffect(() => {
     openSlotPicker('teamAP1', EMPTY);
-    return () => closePicker();
+    return () => {
+      onLineupChange(null);
+      closePicker();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

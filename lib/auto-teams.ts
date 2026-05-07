@@ -1,10 +1,13 @@
 import type { Member } from '@/lib/members';
 
-type MatchLike = {
+export type LineupLike = {
   teamAP1: string;
   teamAP2: string;
   teamBP1: string;
   teamBP2: string;
+};
+
+type MatchLike = LineupLike & {
   scoreA: number;
   scoreB: number;
 };
@@ -52,18 +55,18 @@ function combinationsOfFour(ids: string[]): [string, string, string, string][] {
   return out;
 }
 
-function buildDayMaps(dayMatches: MatchLike[]) {
+function buildDayMaps(dayLineups: LineupLike[]) {
   const pairCounts = new Map<string, number>();
   const playerCounts = new Map<string, number>();
 
-  for (const match of dayMatches) {
-    increment(pairCounts, pairKey(match.teamAP1, match.teamAP2));
-    increment(pairCounts, pairKey(match.teamBP1, match.teamBP2));
+  for (const lineup of dayLineups) {
+    increment(pairCounts, pairKey(lineup.teamAP1, lineup.teamAP2));
+    increment(pairCounts, pairKey(lineup.teamBP1, lineup.teamBP2));
     for (const id of [
-      match.teamAP1,
-      match.teamAP2,
-      match.teamBP1,
-      match.teamBP2,
+      lineup.teamAP1,
+      lineup.teamAP2,
+      lineup.teamBP1,
+      lineup.teamBP2,
     ]) {
       increment(playerCounts, id);
     }
@@ -101,11 +104,11 @@ function buildAverageScores(allMatches: MatchLike[]) {
 
 export function suggestTeams({
   members,
-  dayMatches,
+  dayLineups,
   allMatches,
 }: {
   members: Member[];
-  dayMatches: MatchLike[];
+  dayLineups: LineupLike[];
   allMatches: MatchLike[];
 }): TeamSuggestion | null {
   const eligibleIds = [...members]
@@ -115,7 +118,7 @@ export function suggestTeams({
 
   if (eligibleIds.length < 4) return null;
 
-  const { pairCounts, playerCounts } = buildDayMaps(dayMatches);
+  const { pairCounts, playerCounts } = buildDayMaps(dayLineups);
   const averageScore = buildAverageScores(allMatches);
   let best: Candidate | null = null;
 
@@ -146,13 +149,13 @@ export function suggestTeams({
         !best ||
         candidate.repeatedPairs < best.repeatedPairs ||
         (candidate.repeatedPairs === best.repeatedPairs &&
-          candidate.balanceGap < best.balanceGap) ||
-        (candidate.repeatedPairs === best.repeatedPairs &&
-          candidate.balanceGap === best.balanceGap &&
           candidate.dayLoad < best.dayLoad) ||
         (candidate.repeatedPairs === best.repeatedPairs &&
-          candidate.balanceGap === best.balanceGap &&
           candidate.dayLoad === best.dayLoad &&
+          candidate.balanceGap < best.balanceGap) ||
+        (candidate.repeatedPairs === best.repeatedPairs &&
+          candidate.dayLoad === best.dayLoad &&
+          candidate.balanceGap === best.balanceGap &&
           candidate.stableKey < best.stableKey)
       ) {
         best = candidate;

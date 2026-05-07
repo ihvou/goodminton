@@ -2,9 +2,15 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { ImagePlus, Plus, Trash2, X } from 'lucide-react';
-import { createMember, deleteMember, updateMember } from '@/lib/actions';
+import {
+  createMember,
+  deleteMember,
+  updateMember,
+  updateMemberPlaying,
+} from '@/lib/actions';
 import { sortMembers, type Member } from '@/lib/members';
 import { Avatar } from './avatar';
+import { cn } from '@/lib/utils';
 
 type Draft = {
   id: string | null;
@@ -24,6 +30,7 @@ export function PlayersView({ members }: { members: Member[] }) {
   const [pending, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
   const sorted = sortMembers(members);
+  const playingCount = sorted.filter((member) => member.isPlaying).length;
 
   function startAdd() {
     setDraft(EMPTY_DRAFT);
@@ -96,13 +103,26 @@ export function PlayersView({ members }: { members: Member[] }) {
     });
   }
 
+  function setPlaying(member: Member, isPlaying: boolean) {
+    if (pending) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        await updateMemberPlaying({ id: member.id, isPlaying });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to update player');
+      }
+    });
+  }
+
   return (
     <div className="space-y-4 pt-4 pb-24">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-base font-semibold tracking-tight">Players</h1>
           <p className="text-xs text-neutral-500">
-            {sorted.length === 1 ? '1 player' : `${sorted.length} players`}
+            {sorted.length === 1 ? '1 player' : `${sorted.length} players`} -{' '}
+            {playingCount} playing
           </p>
         </div>
         <button
@@ -124,6 +144,7 @@ export function PlayersView({ members }: { members: Member[] }) {
                   id: draft.id ?? (draft.name || 'new'),
                   name: draft.name || 'Player',
                   avatar: draft.avatar,
+                  isPlaying: true,
                 }}
                 size="lg"
               />
@@ -198,8 +219,23 @@ export function PlayersView({ members }: { members: Member[] }) {
         {sorted.map((member) => (
           <article
             key={member.id}
-            className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3"
+            className={cn(
+              'flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3 transition',
+              !member.isPlaying && 'bg-neutral-50 text-neutral-500',
+            )}
           >
+            <label className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white">
+              <input
+                type="checkbox"
+                checked={member.isPlaying}
+                disabled={pending}
+                onChange={(e) => setPlaying(member, e.currentTarget.checked)}
+                className="h-4 w-4 accent-neutral-950 disabled:opacity-50"
+              />
+              <span className="sr-only">
+                {member.isPlaying ? 'Remove from playing list' : 'Add to playing list'}
+              </span>
+            </label>
             <Avatar member={member} size="md" />
             <button
               type="button"
@@ -207,7 +243,9 @@ export function PlayersView({ members }: { members: Member[] }) {
               className="min-w-0 flex-1 text-left"
             >
               <div className="truncate text-sm font-medium">{member.name}</div>
-              <div className="truncate text-xs text-neutral-400">{member.id}</div>
+              <div className="truncate text-xs text-neutral-400">
+                {member.id} - {member.isPlaying ? 'Playing' : 'Out'}
+              </div>
             </button>
             <button
               type="button"

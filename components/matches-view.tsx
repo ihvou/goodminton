@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import type { DayMatch } from '@/lib/queries';
+import type { DayMatch, MatchWithDate } from '@/lib/queries';
 import type { Member } from '@/lib/members';
 import { MemberPicker } from './member-picker';
 import { MatchCard } from './match-card';
@@ -12,31 +12,48 @@ import { DayStrip, type DayItem } from './day-strip';
 import { formatLong, fromIsoDate } from '@/lib/dates';
 
 type PickerState = {
+  members: Member[];
   excludeIds: string[];
   selectedId: string | null;
   onPick: (m: Member) => void;
+  onSuggest?: () => void;
+  suggestDisabled?: boolean;
 } | null;
+
+type PickerArgs = Omit<NonNullable<PickerState>, 'members'> & {
+  members?: Member[];
+};
 
 export function MatchesView({
   selectedDate,
   dayList,
   matches,
+  allMatches,
   members,
   isAdmin,
 }: {
   selectedDate: string;
   dayList: DayItem[];
   matches: DayMatch[];
+  allMatches: MatchWithDate[];
   members: Member[];
   isAdmin: boolean;
 }) {
   const router = useRouter();
   const [picker, setPicker] = useState<PickerState>(null);
   const [drafts, setDrafts] = useState<string[]>([]);
+  const playingMembers = useMemo(
+    () => members.filter((member) => member.isPlaying),
+    [members],
+  );
 
-  const openPicker = useCallback((args: NonNullable<PickerState>) => {
-    setPicker(args);
-  }, []);
+  const openPicker = useCallback(
+    (args: PickerArgs) => {
+      const { members: pickerMembers, ...rest } = args;
+      setPicker({ ...rest, members: pickerMembers ?? members });
+    },
+    [members],
+  );
 
   const closePicker = useCallback(() => {
     setPicker(null);
@@ -97,7 +114,9 @@ export function MatchesView({
           <DraftMatchCard
             key={draftId}
             playDate={selectedDate}
-            members={members}
+            members={playingMembers}
+            dayMatches={matches}
+            allMatches={allMatches}
             onCancel={() => removeDraft(draftId)}
             onSaved={() => removeDraft(draftId)}
             openPicker={openPicker}
@@ -125,10 +144,12 @@ export function MatchesView({
 
       <MemberPicker
         open={picker !== null}
-        members={members}
+        members={picker?.members ?? []}
         excludeIds={picker?.excludeIds ?? []}
         selectedId={picker?.selectedId ?? null}
         onPick={(member) => picker?.onPick(member)}
+        onSuggest={picker?.onSuggest}
+        suggestDisabled={picker?.suggestDisabled}
         onClose={closePicker}
       />
     </div>

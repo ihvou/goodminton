@@ -1,5 +1,10 @@
 import { isAdmin } from '@/lib/auth';
-import { loadDayCounts, loadDayMatches, loadMembers } from '@/lib/queries';
+import {
+  loadAllMatches,
+  loadDayCounts,
+  loadDayMatches,
+  loadMembers,
+} from '@/lib/queries';
 import {
   todayIso,
   currentWeekPlayDays,
@@ -21,10 +26,11 @@ export default async function HomePage({
   const params = await searchParams;
   const today = todayIso();
 
-  const [dayCounts, admin, members] = await Promise.all([
+  const [dayCounts, admin, members, allMatches] = await Promise.all([
     loadDayCounts(),
     isAdmin(),
     loadMembers(),
+    loadAllMatches(),
   ]);
   const matchDates = Array.from(dayCounts.entries())
     .filter(([, count]) => count > 0)
@@ -58,6 +64,7 @@ export default async function HomePage({
       selectedDate={selectedDate}
       dayList={dayList}
       matches={matches}
+      allMatches={allMatches}
       members={members}
       isAdmin={admin}
     />

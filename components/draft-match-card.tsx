@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { X } from 'lucide-react';
 import { getMemberOrFallback, type Member } from '@/lib/members';
+import type { DayMatch, MatchWithDate } from '@/lib/queries';
+import { suggestTeams } from '@/lib/auto-teams';
 import { Avatar } from './avatar';
 import { cn } from '@/lib/utils';
 import { createMatch } from '@/lib/actions';
@@ -57,14 +59,19 @@ function buildExclude(d: Draft, except: Slot): string[] {
 }
 
 type PickerArgs = {
+  members?: Member[];
   excludeIds: string[];
   selectedId: string | null;
   onPick: (m: Member) => void;
+  onSuggest?: () => void;
+  suggestDisabled?: boolean;
 };
 
 export function DraftMatchCard({
   playDate,
   members,
+  dayMatches,
+  allMatches,
   onCancel,
   onSaved,
   openPicker,
@@ -72,6 +79,8 @@ export function DraftMatchCard({
 }: {
   playDate: string;
   members: Member[];
+  dayMatches: DayMatch[];
+  allMatches: MatchWithDate[];
   onCancel: () => void;
   onSaved: () => void;
   openPicker: (args: PickerArgs) => void;
@@ -97,8 +106,11 @@ export function DraftMatchCard({
   function openSlotPicker(slot: Slot, snapshot: Draft) {
     setActive(slot);
     openPicker({
+      members,
       excludeIds: buildExclude(snapshot, slot),
       selectedId: snapshot[slot],
+      onSuggest: () => applySuggestion(snapshot),
+      suggestDisabled: members.length < 4,
       onPick: (member) => {
         const newDraft = { ...snapshot, [slot]: member.id };
         setDraft(newDraft);
@@ -115,6 +127,41 @@ export function DraftMatchCard({
         }
       },
     });
+  }
+
+  function applySuggestion(snapshot: Draft) {
+    const suggestion = suggestTeams({
+      members,
+      dayMatches,
+      allMatches,
+    });
+
+    if (!suggestion) {
+      setError('Select at least 4 playing players');
+      return;
+    }
+
+    const newDraft: Draft = {
+      ...snapshot,
+      teamAP1: suggestion.teamA[0],
+      teamAP2: suggestion.teamA[1],
+      teamBP1: suggestion.teamB[0],
+      teamBP2: suggestion.teamB[1],
+    };
+    setDraft(newDraft);
+    setError(null);
+
+    const next = nextEmpty(newDraft);
+    if (next === null) {
+      closePicker();
+      tryAutoSave(newDraft);
+    } else if (next === 'scoreA' || next === 'scoreB') {
+      setActive(next);
+      closePicker();
+      focusScore(next);
+    } else {
+      openSlotPicker(next, newDraft);
+    }
   }
 
   useEffect(() => {
@@ -182,7 +229,7 @@ export function DraftMatchCard({
   return (
     <article
       className={cn(
-        'relative rounded-2xl border-2 border-dashed border-neutral-300 bg-white p-4 transition',
+        'relative rounded-2xl border-2 border-dashed border-neutral-300 bg-white p-4 pr-12 transition',
         pending && 'opacity-60',
       )}
     >
@@ -289,7 +336,7 @@ function DraftRow({
           if (draft[scoreField] !== '') onScoreCommit();
         }}
         className={cn(
-          'w-12 rounded-md py-1 text-right text-base tabular-nums outline-none transition placeholder:text-neutral-300',
+          'w-12 shrink-0 rounded-md py-1 text-right text-base tabular-nums outline-none transition placeholder:text-neutral-300',
           active === scoreField
             ? 'bg-neutral-100 ring-1 ring-neutral-950'
             : 'bg-transparent',
@@ -338,7 +385,7 @@ function DraftSlot({
       <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-neutral-300">
         +
       </span>
-      <span>Player</span>
+      <span className="truncate">Player</span>
     </button>
   );
 }

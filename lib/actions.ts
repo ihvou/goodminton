@@ -205,6 +205,35 @@ export async function updateMember(input: UpdateMemberInput) {
   revalidateRosterPaths();
 }
 
+export async function updateMemberPlaying(input: {
+  id: string;
+  isPlaying: boolean;
+}) {
+  await requireAdmin();
+  const current = (await loadMembers()).find((member) => member.id === input.id);
+  if (!current) throw new Error('Player not found');
+
+  await db
+    .insert(members)
+    .values({
+      id: current.id,
+      name: current.name,
+      avatar: current.avatar ?? null,
+      isActive: true,
+      isPlaying: input.isPlaying,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: members.id,
+      set: {
+        isActive: true,
+        isPlaying: input.isPlaying,
+        updatedAt: new Date(),
+      },
+    });
+  revalidateRosterPaths();
+}
+
 export async function deleteMember(input: { id: string }) {
   await requireAdmin();
   const [{ count }] = await db
@@ -229,12 +258,14 @@ export async function deleteMember(input: { id: string }) {
         id: input.id,
         name: input.id,
         isActive: false,
+        isPlaying: false,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: members.id,
         set: {
           isActive: false,
+          isPlaying: false,
           updatedAt: new Date(),
         },
       });

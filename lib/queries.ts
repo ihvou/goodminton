@@ -30,6 +30,7 @@ export async function loadMembers(): Promise<Member[]> {
       name: members.name,
       avatar: members.avatar,
       isActive: members.isActive,
+      isPlaying: members.isPlaying,
     })
     .from(members)
     .orderBy(asc(members.name));
@@ -47,6 +48,7 @@ export async function loadMembers(): Promise<Member[]> {
       id: row.id,
       name: row.name,
       avatar: row.avatar,
+      isPlaying: row.isPlaying,
     });
   }
 

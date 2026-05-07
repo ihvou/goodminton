@@ -16,6 +16,7 @@ export const members = pgTable('members', {
   name: text('name').notNull(),
   avatar: text('avatar'),
   isActive: boolean('is_active').notNull().default(true),
+  isPlaying: boolean('is_playing').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

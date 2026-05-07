@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { X } from 'lucide-react';
 import { getMemberOrFallback, type Member } from '@/lib/members';
 import type { DayMatch, MatchWithDate } from '@/lib/queries';
@@ -11,23 +11,13 @@ import { createMatch } from '@/lib/actions';
 
 const SLOTS = ['teamAP1', 'teamAP2', 'teamBP1', 'teamBP2'] as const;
 type Slot = (typeof SLOTS)[number];
-type Field = Slot | 'scoreA' | 'scoreB';
-const ORDER: Field[] = [
-  'teamAP1',
-  'teamAP2',
-  'scoreA',
-  'teamBP1',
-  'teamBP2',
-  'scoreB',
-];
+const ORDER: Slot[] = ['teamAP1', 'teamAP2', 'teamBP1', 'teamBP2'];
 
 type Draft = {
   teamAP1: string | null;
   teamAP2: string | null;
   teamBP1: string | null;
   teamBP2: string | null;
-  scoreA: string;
-  scoreB: string;
 };
 
 const EMPTY: Draft = {
@@ -35,8 +25,6 @@ const EMPTY: Draft = {
   teamAP2: null,
   teamBP1: null,
   teamBP2: null,
-  scoreA: '',
-  scoreB: '',
 };
 
 function draftLineup(d: Draft): LineupLike | null {
@@ -49,11 +37,9 @@ function draftLineup(d: Draft): LineupLike | null {
   };
 }
 
-function nextEmpty(d: Draft): Field | null {
+function nextEmpty(d: Draft): Slot | null {
   for (const f of ORDER) {
-    if (f === 'scoreA' || f === 'scoreB') {
-      if (d[f] === '') return f;
-    } else if (d[f] === null) return f;
+    if (d[f] === null) return f;
   }
   return null;
 }
@@ -82,6 +68,7 @@ export function DraftMatchCard({
   members,
   dayMatches,
   reservedLineups,
+  blockedPlayerIds,
   allMatches,
   onLineupChange,
   onCancel,
@@ -93,6 +80,7 @@ export function DraftMatchCard({
   members: Member[];
   dayMatches: DayMatch[];
   reservedLineups: LineupLike[];
+  blockedPlayerIds: string[];
   allMatches: MatchWithDate[];
   onLineupChange: (lineup: LineupLike | null) => void;
   onCancel: () => void;
@@ -101,27 +89,15 @@ export function DraftMatchCard({
   closePicker: () => void;
 }) {
   const [draft, setDraft] = useState<Draft>(EMPTY);
-  const [active, setActive] = useState<Field>('teamAP1');
+  const [active, setActive] = useState<Slot>('teamAP1');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const scoreARef = useRef<HTMLInputElement>(null);
-  const scoreBRef = useRef<HTMLInputElement>(null);
-
-  function focusScore(field: 'scoreA' | 'scoreB') {
-    const ref = field === 'scoreA' ? scoreARef : scoreBRef;
-    ref.current?.focus();
-    ref.current?.select();
-    requestAnimationFrame(() => {
-      ref.current?.focus();
-      ref.current?.select();
-    });
-  }
 
   function openSlotPicker(slot: Slot, snapshot: Draft) {
     setActive(slot);
     openPicker({
       members,
-      excludeIds: buildExclude(snapshot, slot),
+      excludeIds: [...buildExclude(snapshot, slot), ...blockedPlayerIds],
       selectedId: snapshot[slot],
       onSuggest: () => applySuggestion(snapshot),
       suggestDisabled: members.length < 4,
@@ -129,15 +105,12 @@ export function DraftMatchCard({
         const newDraft = { ...snapshot, [slot]: member.id };
         setDraft(newDraft);
         onLineupChange(draftLineup(newDraft));
-        const next = nextEmpty(newDraft);
-        if (next === null) {
+        if (draftLineup(newDraft)) {
           closePicker();
-          tryAutoSave(newDraft);
-        } else if (next === 'scoreA' || next === 'scoreB') {
-          setActive(next);
-          focusScore(next);
-          closePicker();
+          createPlannedMatch(newDraft);
         } else {
+          const next = nextEmpty(newDraft);
+          if (next === null) return;
           openSlotPicker(next, newDraft);
         }
       },
@@ -149,6 +122,7 @@ export function DraftMatchCard({
       members,
       dayLineups: [...dayMatches, ...reservedLineups],
       allMatches,
+      blockedPlayerIds,
     });
 
     if (!suggestion) {
@@ -167,17 +141,8 @@ export function DraftMatchCard({
     onLineupChange(draftLineup(newDraft));
     setError(null);
 
-    const next = nextEmpty(newDraft);
-    if (next === null) {
-      closePicker();
-      tryAutoSave(newDraft);
-    } else if (next === 'scoreA' || next === 'scoreB') {
-      setActive(next);
-      closePicker();
-      focusScore(next);
-    } else {
-      openSlotPicker(next, newDraft);
-    }
+    closePicker();
+    createPlannedMatch(newDraft);
   }
 
   useEffect(() => {
@@ -193,39 +158,8 @@ export function DraftMatchCard({
     openSlotPicker(slot, draft);
   }
 
-  function onScoreChange(side: 'A' | 'B', v: string) {
-    const cleaned = v.replace(/\D/g, '').slice(0, 3);
-    setDraft((d) => ({ ...d, [side === 'A' ? 'scoreA' : 'scoreB']: cleaned }));
-    setError(null);
-  }
-
-  function onScoreCommit(side: 'A' | 'B') {
-    const current: Draft = {
-      ...draft,
-      [side === 'A' ? 'scoreA' : 'scoreB']:
-        side === 'A' ? draft.scoreA : draft.scoreB,
-    };
-    const next = nextEmpty(current);
-    if (next === null) {
-      tryAutoSave(current);
-    } else if (next === 'scoreA' || next === 'scoreB') {
-      setActive(next);
-      focusScore(next);
-    } else {
-      openSlotPicker(next, current);
-    }
-  }
-
-  function tryAutoSave(d: Draft) {
+  function createPlannedMatch(d: Draft) {
     if (!d.teamAP1 || !d.teamAP2 || !d.teamBP1 || !d.teamBP2) return;
-    if (d.scoreA === '' || d.scoreB === '') return;
-    const a = parseInt(d.scoreA, 10);
-    const b = parseInt(d.scoreB, 10);
-    if (!Number.isFinite(a) || !Number.isFinite(b)) return;
-    if (a === b) {
-      setError('One team must win');
-      return;
-    }
     setError(null);
     startTransition(async () => {
       try {
@@ -235,8 +169,6 @@ export function DraftMatchCard({
           teamAP2: d.teamAP2!,
           teamBP1: d.teamBP1!,
           teamBP2: d.teamBP2!,
-          scoreA: a,
-          scoreB: b,
         });
         onSaved();
       } catch (e) {
@@ -267,13 +199,9 @@ export function DraftMatchCard({
         label="A"
         slot1="teamAP1"
         slot2="teamAP2"
-        scoreField="scoreA"
-        scoreRef={scoreARef}
         draft={draft}
         active={active}
         onTapSlot={onTapSlot}
-        onScoreChange={(v) => onScoreChange('A', v)}
-        onScoreCommit={() => onScoreCommit('A')}
         members={members}
       />
       <div className="my-2 h-px bg-neutral-100" />
@@ -281,13 +209,9 @@ export function DraftMatchCard({
         label="B"
         slot1="teamBP1"
         slot2="teamBP2"
-        scoreField="scoreB"
-        scoreRef={scoreBRef}
         draft={draft}
         active={active}
         onTapSlot={onTapSlot}
-        onScoreChange={(v) => onScoreChange('B', v)}
-        onScoreCommit={() => onScoreCommit('B')}
         members={members}
       />
       {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
@@ -299,25 +223,17 @@ function DraftRow({
   label,
   slot1,
   slot2,
-  scoreField,
-  scoreRef,
   draft,
   active,
   onTapSlot,
-  onScoreChange,
-  onScoreCommit,
   members,
 }: {
   label: 'A' | 'B';
   slot1: Slot;
   slot2: Slot;
-  scoreField: 'scoreA' | 'scoreB';
-  scoreRef: React.RefObject<HTMLInputElement | null>;
   draft: Draft;
-  active: Field;
+  active: Slot;
   onTapSlot: (slot: Slot) => void;
-  onScoreChange: (v: string) => void;
-  onScoreCommit: () => void;
   members: Member[];
 }) {
   return (
@@ -337,31 +253,6 @@ function DraftRow({
           members={members}
         />
       </div>
-      <input
-        ref={scoreRef}
-        type="text"
-        inputMode="numeric"
-        pattern="[0-9]*"
-        value={draft[scoreField]}
-        placeholder="—"
-        onChange={(e) => onScoreChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === 'Tab') {
-            e.preventDefault();
-            onScoreCommit();
-          }
-        }}
-        onBlur={() => {
-          if (draft[scoreField] !== '') onScoreCommit();
-        }}
-        className={cn(
-          'w-12 shrink-0 rounded-md py-1 text-right text-base tabular-nums outline-none transition placeholder:text-neutral-300',
-          active === scoreField
-            ? 'bg-neutral-100 ring-1 ring-neutral-950'
-            : 'bg-transparent',
-          'focus:bg-neutral-100',
-        )}
-      />
     </div>
   );
 }

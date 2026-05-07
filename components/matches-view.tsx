@@ -25,6 +25,19 @@ type PickerArgs = Omit<NonNullable<PickerState>, 'members'> & {
   members?: Member[];
 };
 
+function lineupPlayerIds(lineup: LineupLike): string[] {
+  return [lineup.teamAP1, lineup.teamAP2, lineup.teamBP1, lineup.teamBP2];
+}
+
+function matchLineup(match: DayMatch): LineupLike {
+  return {
+    teamAP1: match.teamAP1,
+    teamAP2: match.teamAP2,
+    teamBP1: match.teamBP1,
+    teamBP2: match.teamBP2,
+  };
+}
+
 export function MatchesView({
   selectedDate,
   dayList,
@@ -129,6 +142,16 @@ export function MatchesView({
             reservedLineups={Object.entries(draftLineups)
               .filter(([id]) => id !== draftId)
               .map(([, lineup]) => lineup)}
+            blockedPlayerIds={[
+              ...matches
+                .filter((match) => match.scoreA === null || match.scoreB === null)
+                .flatMap(matchLineup)
+                .flatMap(lineupPlayerIds),
+              ...Object.entries(draftLineups)
+                .filter(([id]) => id !== draftId)
+                .map(([, lineup]) => lineup)
+                .flatMap(lineupPlayerIds),
+            ]}
             allMatches={allMatches}
             onLineupChange={(lineup) => {
               setDraftLineups((lineups) => {

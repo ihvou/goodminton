@@ -4,11 +4,15 @@ import { db } from '@/db';
 import { members, playSessions, matches } from '@/db/schema';
 import { requireAdmin } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
-import { eq, or, sql } from 'drizzle-orm';
+import { and, eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { DEFAULT_MEMBERS, isDefaultMember } from '@/lib/members';
 import { loadMembers } from '@/lib/queries';
 
 const MAX_AVATAR_LENGTH = 1_500_000;
+
+function hasOwn<T extends object>(obj: T, key: PropertyKey): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
 
 async function validatePlayers(p1: string, p2: string, p3: string, p4: string) {
   const ids = [p1, p2, p3, p4];
@@ -21,12 +25,60 @@ async function validatePlayers(p1: string, p2: string, p3: string, p4: string) {
   }
 }
 
-function validateScores(a: number, b: number) {
-  if (!Number.isInteger(a) || !Number.isInteger(b)) {
+function validateScores(a: number | null, b: number | null) {
+  if (a !== null && !Number.isInteger(a)) {
     throw new Error('Scores must be whole numbers');
   }
-  if (a < 0 || b < 0) throw new Error('Scores must be ≥ 0');
-  if (a === b) throw new Error('One team must win');
+  if (b !== null && !Number.isInteger(b)) {
+    throw new Error('Scores must be whole numbers');
+  }
+  if ((a !== null && a < 0) || (b !== null && b < 0)) {
+    throw new Error('Scores must be ≥ 0');
+  }
+  if (a !== null && b !== null && a === b) {
+    throw new Error('One team must win');
+  }
+}
+
+function isIncompleteScore(a: number | null, b: number | null) {
+  return a === null || b === null;
+}
+
+async function validateNoPendingPlayerOverlap({
+  sessionId,
+  playerIds,
+  excludeMatchId,
+}: {
+  sessionId: string;
+  playerIds: string[];
+  excludeMatchId?: string;
+}) {
+  const rows = await db
+    .select({
+      id: matches.id,
+      teamAP1: matches.teamAP1,
+      teamAP2: matches.teamAP2,
+      teamBP1: matches.teamBP1,
+      teamBP2: matches.teamBP2,
+    })
+    .from(matches)
+    .where(
+      and(
+        eq(matches.sessionId, sessionId),
+        or(isNull(matches.scoreA), isNull(matches.scoreB)),
+        excludeMatchId ? ne(matches.id, excludeMatchId) : undefined,
+      ),
+    );
+
+  const requested = new Set(playerIds);
+  for (const row of rows) {
+    const overlap = [row.teamAP1, row.teamAP2, row.teamBP1, row.teamBP2].find(
+      (id) => requested.has(id),
+    );
+    if (overlap) {
+      throw new Error(`${overlap} is already in an unfinished match`);
+    }
+  }
 }
 
 function slugifyName(name: string): string {
@@ -96,15 +148,23 @@ export type CreateMatchInput = {
   teamAP2: string;
   teamBP1: string;
   teamBP2: string;
-  scoreA: number;
-  scoreB: number;
+  scoreA?: number | null;
+  scoreB?: number | null;
 };
 
 export async function createMatch(input: CreateMatchInput) {
   await requireAdmin();
   await validatePlayers(input.teamAP1, input.teamAP2, input.teamBP1, input.teamBP2);
-  validateScores(input.scoreA, input.scoreB);
+  const scoreA = input.scoreA ?? null;
+  const scoreB = input.scoreB ?? null;
+  validateScores(scoreA, scoreB);
   const sessionId = await findOrCreateSession(input.playDate);
+  if (isIncompleteScore(scoreA, scoreB)) {
+    await validateNoPendingPlayerOverlap({
+      sessionId,
+      playerIds: [input.teamAP1, input.teamAP2, input.teamBP1, input.teamBP2],
+    });
+  }
   const [created] = await db
     .insert(matches)
     .values({
@@ -113,8 +173,8 @@ export async function createMatch(input: CreateMatchInput) {
       teamAP2: input.teamAP2,
       teamBP1: input.teamBP1,
       teamBP2: input.teamBP2,
-      scoreA: input.scoreA,
-      scoreB: input.scoreB,
+      scoreA,
+      scoreB,
     })
     .returning();
   revalidatePath('/');
@@ -127,8 +187,8 @@ export type UpdateMatchInput = Partial<{
   teamAP2: string;
   teamBP1: string;
   teamBP2: string;
-  scoreA: number;
-  scoreB: number;
+  scoreA: number | null;
+  scoreB: number | null;
 }> & { id: string };
 
 export async function updateMatch(input: UpdateMatchInput) {
@@ -142,11 +202,18 @@ export async function updateMatch(input: UpdateMatchInput) {
     teamAP2: input.teamAP2 ?? current.teamAP2,
     teamBP1: input.teamBP1 ?? current.teamBP1,
     teamBP2: input.teamBP2 ?? current.teamBP2,
-    scoreA: input.scoreA ?? current.scoreA,
-    scoreB: input.scoreB ?? current.scoreB,
+    scoreA: hasOwn(input, 'scoreA') ? input.scoreA! : current.scoreA,
+    scoreB: hasOwn(input, 'scoreB') ? input.scoreB! : current.scoreB,
   };
   await validatePlayers(next.teamAP1, next.teamAP2, next.teamBP1, next.teamBP2);
   validateScores(next.scoreA, next.scoreB);
+  if (isIncompleteScore(next.scoreA, next.scoreB)) {
+    await validateNoPendingPlayerOverlap({
+      sessionId: current.sessionId,
+      playerIds: [next.teamAP1, next.teamAP2, next.teamBP1, next.teamBP2],
+      excludeMatchId: input.id,
+    });
+  }
   await db
     .update(matches)
     .set({ ...next, updatedAt: new Date() })

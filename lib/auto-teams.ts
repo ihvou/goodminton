@@ -8,8 +8,8 @@ export type LineupLike = {
 };
 
 type MatchLike = LineupLike & {
-  scoreA: number;
-  scoreB: number;
+  scoreA: number | null;
+  scoreB: number | null;
 };
 
 export type TeamSuggestion = {
@@ -89,6 +89,7 @@ function buildAverageScores(allMatches: MatchLike[]) {
   }
 
   for (const match of allMatches) {
+    if (match.scoreA === null || match.scoreB === null) continue;
     addPlayer(match.teamAP1, match.scoreA);
     addPlayer(match.teamAP2, match.scoreA);
     addPlayer(match.teamBP1, match.scoreB);
@@ -106,13 +107,16 @@ export function suggestTeams({
   members,
   dayLineups,
   allMatches,
+  blockedPlayerIds = [],
 }: {
   members: Member[];
   dayLineups: LineupLike[];
   allMatches: MatchLike[];
+  blockedPlayerIds?: string[];
 }): TeamSuggestion | null {
+  const blocked = new Set(blockedPlayerIds);
   const eligibleIds = [...members]
-    .filter((member) => member.isPlaying)
+    .filter((member) => member.isPlaying && !blocked.has(member.id))
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((member) => member.id);
 

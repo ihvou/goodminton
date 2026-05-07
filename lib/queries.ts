@@ -14,8 +14,8 @@ export type DayMatch = {
   teamAP2: string;
   teamBP1: string;
   teamBP2: string;
-  scoreA: number;
-  scoreB: number;
+  scoreA: number | null;
+  scoreB: number | null;
   createdAt: Date;
 };
 

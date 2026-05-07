@@ -32,7 +32,8 @@ export function MatchCard({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const aWon = match.scoreA > match.scoreB;
+  const hasScores = match.scoreA !== null && match.scoreB !== null;
+  const aWon = hasScores ? match.scoreA! > match.scoreB! : false;
 
   function tapSlot(slot: Slot) {
     if (!isAdmin) return;
@@ -56,7 +57,7 @@ export function MatchCard({
     });
   }
 
-  function setScore(side: 'A' | 'B', value: number) {
+  function setScore(side: 'A' | 'B', value: number | null) {
     const current = side === 'A' ? match.scoreA : match.scoreB;
     if (value === current) return;
     setError(null);
@@ -105,7 +106,7 @@ export function MatchCard({
       <div className="my-2 h-px bg-neutral-100" />
       <TeamRow
         label="B"
-        won={!aWon}
+        won={hasScores && !aWon}
         score={match.scoreB}
         p1Id={match.teamBP1}
         p2Id={match.teamBP2}
@@ -146,12 +147,12 @@ function TeamRow({
 }: {
   label: 'A' | 'B';
   won: boolean;
-  score: number;
+  score: number | null;
   p1Id: string;
   p2Id: string;
   onTapP1: () => void;
   onTapP2: () => void;
-  onScoreChange: (v: number) => void;
+  onScoreChange: (v: number | null) => void;
   editable: boolean;
   members: Member[];
 }) {
@@ -211,27 +212,29 @@ function ScoreInput({
   editable,
   won,
 }: {
-  value: number;
-  onChange: (v: number) => void;
+  value: number | null;
+  onChange: (v: number | null) => void;
   editable: boolean;
   won: boolean;
 }) {
-  const [draft, setDraft] = useState(String(value));
+  const valueText = value === null ? '' : String(value);
+  const [draft, setDraft] = useState(valueText);
   const [focused, setFocused] = useState(false);
 
-  if (!focused && draft !== String(value)) {
-    setDraft(String(value));
+  if (!focused && draft !== valueText) {
+    setDraft(valueText);
   }
 
   if (!editable) {
     return (
       <span
         className={cn(
-          'w-12 text-right text-base tabular-nums',
+          'w-12 text-right text-base tabular-nums text-neutral-950',
+          value === null && 'text-neutral-300',
           won && 'font-semibold',
         )}
       >
-        {value}
+        {value ?? '—'}
       </span>
     );
   }
@@ -242,6 +245,7 @@ function ScoreInput({
       inputMode="numeric"
       pattern="[0-9]*"
       value={draft}
+      placeholder="—"
       onChange={(e) => setDraft(e.target.value.replace(/\D/g, '').slice(0, 3))}
       onFocus={(e) => {
         setFocused(true);
@@ -249,15 +253,19 @@ function ScoreInput({
       }}
       onBlur={() => {
         setFocused(false);
+        if (draft === '') {
+          if (value !== null) onChange(null);
+          return;
+        }
         const n = parseInt(draft, 10);
         if (Number.isFinite(n) && n !== value && n >= 0) onChange(n);
-        else setDraft(String(value));
+        else setDraft(valueText);
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
       }}
       className={cn(
-        'w-12 rounded-md py-1 text-right text-base tabular-nums outline-none transition focus:bg-neutral-100',
+        'w-12 rounded-md py-1 text-right text-base tabular-nums outline-none transition placeholder:text-neutral-300 focus:bg-neutral-100',
         won && 'font-semibold',
       )}
     />

@@ -59,6 +59,7 @@ export function computePlayerStats(matches: MatchWithDate[]): PlayerStats[] {
   };
 
   for (const m of matches) {
+    if (m.scoreA === null || m.scoreB === null) continue;
     const aWon = m.scoreA > m.scoreB;
     for (const id of [m.teamAP1, m.teamAP2]) {
       const s = ensure(id);
@@ -110,6 +111,7 @@ export function computeTeamStats(matches: MatchWithDate[]): TeamStats[] {
   };
 
   for (const m of matches) {
+    if (m.scoreA === null || m.scoreB === null) continue;
     const aWon = m.scoreA > m.scoreB;
     const sA = ensure(m.teamAP1, m.teamAP2);
     sA.matches++;

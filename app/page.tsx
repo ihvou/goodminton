@@ -3,6 +3,7 @@ import {
   loadAllMatches,
   loadDayCounts,
   loadDayMatches,
+  loadDayTeams,
   loadMembers,
 } from '@/lib/queries';
 import {
@@ -39,7 +40,10 @@ export default async function HomePage({
   const latestMatchDate = sortedMatchDates[sortedMatchDates.length - 1];
   const fallbackDate = toIsoDate(latestPlayDayOnOrBefore(fromIsoDate(today)));
   const selectedDate = params.d ?? latestMatchDate ?? fallbackDate;
-  const matches = await loadDayMatches(selectedDate);
+  const [matches, dayTeams] = await Promise.all([
+    loadDayMatches(selectedDate),
+    loadDayTeams(selectedDate),
+  ]);
 
   // Build the day strip:
   //  - play dates with games (left)
@@ -64,6 +68,7 @@ export default async function HomePage({
       selectedDate={selectedDate}
       dayList={dayList}
       matches={matches}
+      dayTeams={dayTeams}
       allMatches={allMatches}
       members={members}
       isAdmin={admin}

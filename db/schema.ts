@@ -27,6 +27,28 @@ export const playSessions = pgTable('play_sessions', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const dayTeams = pgTable(
+  'day_teams',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sessionId: uuid('session_id')
+      .notNull()
+      .references(() => playSessions.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    playerA: text('player_a'),
+    playerB: text('player_b'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('day_teams_session_idx').on(t.sessionId),
+    check(
+      'day_teams_distinct_players',
+      sql`${t.playerA} IS NULL OR ${t.playerB} IS NULL OR ${t.playerA} <> ${t.playerB}`,
+    ),
+  ],
+);
+
 export const matches = pgTable(
   'matches',
   {
@@ -61,6 +83,8 @@ export const matches = pgTable(
 );
 
 export type PlaySession = typeof playSessions.$inferSelect;
+export type DayTeam = typeof dayTeams.$inferSelect;
+export type NewDayTeam = typeof dayTeams.$inferInsert;
 export type Match = typeof matches.$inferSelect;
 export type NewMatch = typeof matches.$inferInsert;
 export type Member = typeof members.$inferSelect;

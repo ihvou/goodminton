@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import type { DayMatch, MatchWithDate } from '@/lib/queries';
+import type { DayMatch, DayTeam, MatchWithDate } from '@/lib/queries';
 import type { Member } from '@/lib/members';
 import type { LineupLike } from '@/lib/auto-teams';
 import { MemberPicker } from './member-picker';
@@ -17,6 +17,9 @@ type PickerState = {
   excludeIds: string[];
   selectedId: string | null;
   onPick: (m: Member) => void;
+  teams?: DayTeam[];
+  teamExcludeIds?: string[];
+  onPickTeam?: (team: DayTeam) => void;
   onSuggest?: () => void;
   suggestDisabled?: boolean;
 } | null;
@@ -43,6 +46,7 @@ export function MatchesView({
   dayList,
   matches,
   allMatches,
+  dayTeams,
   members,
   isAdmin,
 }: {
@@ -50,6 +54,7 @@ export function MatchesView({
   dayList: DayItem[];
   matches: DayMatch[];
   allMatches: MatchWithDate[];
+  dayTeams: DayTeam[];
   members: Member[];
   isAdmin: boolean;
 }) {
@@ -128,6 +133,7 @@ export function MatchesView({
             match={m}
             playDate={selectedDate}
             members={members}
+            dayTeams={dayTeams}
             isAdmin={isAdmin}
             openPicker={openPicker}
             closePicker={closePicker}
@@ -138,7 +144,9 @@ export function MatchesView({
             key={draftId}
             playDate={selectedDate}
             members={playingMembers}
+            allMembers={members}
             dayMatches={matches}
+            dayTeams={dayTeams}
             reservedLineups={Object.entries(draftLineups)
               .filter(([id]) => id !== draftId)
               .map(([, lineup]) => lineup)}
@@ -194,6 +202,10 @@ export function MatchesView({
         excludeIds={picker?.excludeIds ?? []}
         selectedId={picker?.selectedId ?? null}
         onPick={(member) => picker?.onPick(member)}
+        teams={picker?.teams ?? []}
+        allMembers={members}
+        teamExcludeIds={picker?.teamExcludeIds ?? picker?.excludeIds ?? []}
+        onPickTeam={(team) => picker?.onPickTeam?.(team)}
         onSuggest={picker?.onSuggest}
         suggestDisabled={picker?.suggestDisabled}
         onClose={closePicker}

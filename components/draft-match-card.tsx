@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { X } from 'lucide-react';
 import { getMemberOrFallback, type Member } from '@/lib/members';
-import type { DayMatch, MatchWithDate } from '@/lib/queries';
+import type { DayMatch, DayTeam, MatchWithDate } from '@/lib/queries';
 import { suggestTeams, type LineupLike } from '@/lib/auto-teams';
 import { Avatar } from './avatar';
 import { cn } from '@/lib/utils';
@@ -54,11 +54,31 @@ function buildExclude(d: Draft, except: Slot): string[] {
   return out;
 }
 
+function sideSlots(slot: Slot): [Slot, Slot] {
+  return slot === 'teamAP1' || slot === 'teamAP2'
+    ? ['teamAP1', 'teamAP2']
+    : ['teamBP1', 'teamBP2'];
+}
+
+function buildTeamExclude(d: Draft, slot: Slot): string[] {
+  const side = new Set(sideSlots(slot));
+  const out: string[] = [];
+  for (const s of SLOTS) {
+    if (side.has(s)) continue;
+    const id = d[s];
+    if (id) out.push(id);
+  }
+  return out;
+}
+
 type PickerArgs = {
   members?: Member[];
   excludeIds: string[];
   selectedId: string | null;
   onPick: (m: Member) => void;
+  teams?: DayTeam[];
+  teamExcludeIds?: string[];
+  onPickTeam?: (team: DayTeam) => void;
   onSuggest?: () => void;
   suggestDisabled?: boolean;
 };
@@ -66,7 +86,9 @@ type PickerArgs = {
 export function DraftMatchCard({
   playDate,
   members,
+  allMembers,
   dayMatches,
+  dayTeams,
   reservedLineups,
   blockedPlayerIds,
   allMatches,
@@ -78,7 +100,9 @@ export function DraftMatchCard({
 }: {
   playDate: string;
   members: Member[];
+  allMembers: Member[];
   dayMatches: DayMatch[];
+  dayTeams: DayTeam[];
   reservedLineups: LineupLike[];
   blockedPlayerIds: string[];
   allMatches: MatchWithDate[];
@@ -114,7 +138,32 @@ export function DraftMatchCard({
           openSlotPicker(next, newDraft);
         }
       },
+      teams: dayTeams,
+      teamExcludeIds: [...buildTeamExclude(snapshot, slot), ...blockedPlayerIds],
+      onPickTeam: (team) => applyTeam(slot, snapshot, team),
     });
+  }
+
+  function applyTeam(slot: Slot, snapshot: Draft, team: DayTeam) {
+    if (!team.playerA || !team.playerB) return;
+    const [slot1, slot2] = sideSlots(slot);
+    const newDraft = {
+      ...snapshot,
+      [slot1]: team.playerA,
+      [slot2]: team.playerB,
+    };
+    setDraft(newDraft);
+    onLineupChange(draftLineup(newDraft));
+    setError(null);
+
+    if (draftLineup(newDraft)) {
+      closePicker();
+      createPlannedMatch(newDraft);
+      return;
+    }
+
+    const next = nextEmpty(newDraft);
+    if (next !== null) openSlotPicker(next, newDraft);
   }
 
   function applySuggestion(snapshot: Draft) {
@@ -202,7 +251,7 @@ export function DraftMatchCard({
         draft={draft}
         active={active}
         onTapSlot={onTapSlot}
-        members={members}
+        members={allMembers}
       />
       <div className="my-2 h-px bg-neutral-100" />
       <DraftRow
@@ -212,7 +261,7 @@ export function DraftMatchCard({
         draft={draft}
         active={active}
         onTapSlot={onTapSlot}
-        members={members}
+        members={allMembers}
       />
       {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
     </article>

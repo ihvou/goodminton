@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { Trash2 } from 'lucide-react';
-import type { DayMatch } from '@/lib/queries';
+import type { DayMatch, DayTeam } from '@/lib/queries';
 import { getMemberOrFallback, type Member } from '@/lib/members';
 import { Avatar } from './avatar';
 import { cn } from '@/lib/utils';
@@ -11,10 +11,17 @@ import { updateMatch, deleteMatch } from '@/lib/actions';
 type Slot = 'teamAP1' | 'teamAP2' | 'teamBP1' | 'teamBP2';
 const SLOTS: Slot[] = ['teamAP1', 'teamAP2', 'teamBP1', 'teamBP2'];
 
+function sideSlots(slot: Slot): [Slot, Slot] {
+  return slot === 'teamAP1' || slot === 'teamAP2'
+    ? ['teamAP1', 'teamAP2']
+    : ['teamBP1', 'teamBP2'];
+}
+
 export function MatchCard({
   match,
   playDate,
   members,
+  dayTeams,
   isAdmin,
   openPicker,
   closePicker,
@@ -22,11 +29,15 @@ export function MatchCard({
   match: DayMatch;
   playDate: string;
   members: Member[];
+  dayTeams: DayTeam[];
   isAdmin: boolean;
   openPicker: (args: {
     excludeIds: string[];
     selectedId: string | null;
     onPick: (m: Member) => void;
+    teams?: DayTeam[];
+    teamExcludeIds?: string[];
+    onPickTeam?: (team: DayTeam) => void;
   }) => void;
   closePicker: () => void;
 }) {
@@ -37,11 +48,33 @@ export function MatchCard({
 
   function tapSlot(slot: Slot) {
     if (!isAdmin) return;
+    const side = new Set(sideSlots(slot));
     const ids = SLOTS.map((s) => match[s]);
     const exclude = ids.filter((_, i) => SLOTS[i] !== slot);
+    const teamExclude = SLOTS.filter((s) => !side.has(s)).map((s) => match[s]);
     openPicker({
       excludeIds: exclude,
       selectedId: match[slot],
+      teams: dayTeams,
+      teamExcludeIds: teamExclude,
+      onPickTeam: (team) => {
+        if (!team.playerA || !team.playerB) return;
+        const [slot1, slot2] = sideSlots(slot);
+        closePicker();
+        if (match[slot1] === team.playerA && match[slot2] === team.playerB) return;
+        setError(null);
+        startTransition(async () => {
+          try {
+            await updateMatch({
+              id: match.id,
+              [slot1]: team.playerA,
+              [slot2]: team.playerB,
+            });
+          } catch (e) {
+            setError(e instanceof Error ? e.message : 'Failed to save');
+          }
+        });
+      },
       onPick: (member) => {
         closePicker();
         if (member.id === match[slot]) return;

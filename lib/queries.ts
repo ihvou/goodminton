@@ -1,6 +1,6 @@
 import 'server-only';
 import { db } from '@/db';
-import { playSessions, matches, members } from '@/db/schema';
+import { dayTeams, playSessions, matches, members } from '@/db/schema';
 import { eq, asc, sql } from 'drizzle-orm';
 import {
   DEFAULT_MEMBERS,
@@ -21,6 +21,14 @@ export type DayMatch = {
 
 export type MatchWithDate = DayMatch & {
   playDate: string;
+};
+
+export type DayTeam = {
+  id: string;
+  position: number;
+  playerA: string | null;
+  playerB: string | null;
+  createdAt: Date;
 };
 
 export async function loadMembers(): Promise<Member[]> {
@@ -74,6 +82,25 @@ export async function loadDayMatches(playDate: string): Promise<DayMatch[]> {
     .from(matches)
     .where(eq(matches.sessionId, session.id))
     .orderBy(asc(matches.createdAt));
+}
+
+export async function loadDayTeams(playDate: string): Promise<DayTeam[]> {
+  const session = await db.query.playSessions.findFirst({
+    where: eq(playSessions.playDate, playDate),
+  });
+  if (!session) return [];
+
+  return db
+    .select({
+      id: dayTeams.id,
+      position: dayTeams.position,
+      playerA: dayTeams.playerA,
+      playerB: dayTeams.playerB,
+      createdAt: dayTeams.createdAt,
+    })
+    .from(dayTeams)
+    .where(eq(dayTeams.sessionId, session.id))
+    .orderBy(asc(dayTeams.position));
 }
 
 /** Map of YYYY-MM-DD → match count, for every session row that has matches. */

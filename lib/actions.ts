@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/db';
-import { members, playSessions, matches } from '@/db/schema';
+import { dayTeams, members, playSessions, matches } from '@/db/schema';
 import { requireAdmin } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { and, eq, isNull, ne, or, sql } from 'drizzle-orm';
@@ -301,6 +301,54 @@ export async function updateMemberPlaying(input: {
   revalidateRosterPaths();
 }
 
+export type DayTeamInput = {
+  playerA: string | null;
+  playerB: string | null;
+};
+
+async function validateTeamPlayers(teams: DayTeamInput[]) {
+  const validIds = new Set((await loadMembers()).map((member) => member.id));
+  const used = new Set<string>();
+
+  for (const team of teams) {
+    for (const id of [team.playerA, team.playerB]) {
+      if (id === null) continue;
+      if (!validIds.has(id)) throw new Error('Unknown member: ' + id);
+      if (used.has(id)) throw new Error('Player is in more than one team');
+      used.add(id);
+    }
+    if (team.playerA !== null && team.playerA === team.playerB) {
+      throw new Error('Team needs two different players');
+    }
+  }
+}
+
+export async function updateDayTeams(input: {
+  playDate: string;
+  teams: DayTeamInput[];
+}) {
+  await requireAdmin();
+  await validateTeamPlayers(input.teams);
+  const sessionId = await findOrCreateSession(input.playDate);
+
+  await db.delete(dayTeams).where(eq(dayTeams.sessionId, sessionId));
+  const rows = input.teams
+    .map((team, index) => ({
+      sessionId,
+      position: index,
+      playerA: team.playerA,
+      playerB: team.playerB,
+      updatedAt: new Date(),
+    }))
+    .filter((team) => team.playerA !== null || team.playerB !== null);
+
+  if (rows.length > 0) {
+    await db.insert(dayTeams).values(rows);
+  }
+  revalidatePath('/');
+  revalidatePath('/players');
+}
+
 export async function deleteMember(input: { id: string }) {
   await requireAdmin();
   const [{ count }] = await db
@@ -349,11 +397,15 @@ export async function deleteMatch(input: { id: string; playDate: string }) {
     where: eq(playSessions.playDate, input.playDate),
   });
   if (sessionRow) {
-    const [{ count }] = await db
+    const [{ count: matchCount }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(matches)
       .where(eq(matches.sessionId, sessionRow.id));
-    if (count === 0) {
+    const [{ count: teamCount }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(dayTeams)
+      .where(eq(dayTeams.sessionId, sessionRow.id));
+    if (matchCount === 0 && teamCount === 0) {
       await db.delete(playSessions).where(eq(playSessions.id, sessionRow.id));
     }
   }

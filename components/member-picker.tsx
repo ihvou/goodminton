@@ -194,10 +194,7 @@ export function MemberPicker({
                   key={team.id}
                   type="button"
                   disabled={disabled}
-                  onClick={() => {
-                    setTab('players');
-                    onPickTeam?.(team);
-                  }}
+                  onClick={() => onPickTeam?.(team)}
                   className={cn(
                     'flex w-full items-center gap-2 rounded-2xl px-3 py-2.5 text-left transition',
                     disabled

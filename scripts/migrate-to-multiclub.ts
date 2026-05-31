@@ -86,6 +86,7 @@ async function main() {
       .insert(clubs)
       .values({
         name: process.env.TSUGI_CLUB_NAME || 'Tsugi club',
+        icon: 'trophy',
         accessCode: tsugiPhone,
       })
       .returning();
@@ -141,6 +142,7 @@ async function main() {
       .insert(clubs)
       .values({
         name: 'Demo club',
+        icon: 'target',
         accessCode: DEMO_ACCESS_CODE,
         isDemo: true,
       })

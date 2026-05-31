@@ -4,6 +4,7 @@ import { clubAdmins, clubs } from '@/db/schema';
 import { grantAdminAccess } from '@/lib/auth';
 import { cleanPassword, hashPassword } from '@/lib/passwords';
 import { cleanAccessCode } from '@/lib/phone';
+import { cleanClubIcon } from '@/lib/club-icons';
 
 function cleanName(value: unknown, label: string) {
   if (typeof value !== 'string') throw new Error(`${label} is required`);
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as
     | {
         clubName?: unknown;
-        adminName?: unknown;
+        icon?: unknown;
         phone?: unknown;
         password?: unknown;
       }
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
 
   try {
     const clubName = cleanName(body?.clubName, 'Club name');
-    const adminName = cleanName(body?.adminName, 'Admin name');
+    const icon = cleanClubIcon(body?.icon);
     const phone = cleanAccessCode(typeof body?.phone === 'string' ? body.phone : '');
     const password = cleanPassword(
       typeof body?.password === 'string' ? body.password : '',
@@ -36,6 +37,7 @@ export async function POST(req: Request) {
       .insert(clubs)
       .values({
         name: clubName,
+        icon,
         accessCode: phone,
       })
       .returning();
@@ -43,7 +45,7 @@ export async function POST(req: Request) {
       .insert(clubAdmins)
       .values({
         clubId: club.id,
-        name: adminName,
+        name: 'Admin',
         phone,
         passwordHash,
       })

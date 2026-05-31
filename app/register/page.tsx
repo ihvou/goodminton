@@ -14,7 +14,7 @@ export default async function RegisterPage() {
       <div className="mb-8">
         <h1 className="text-xl font-semibold tracking-tight">Register club</h1>
         <p className="mt-2 text-sm text-neutral-500">
-          Create a club and use the admin phone number as the member access code.
+          Create a club. Members will use the admin phone number as the access code.
         </p>
       </div>
       <RegisterClubForm />

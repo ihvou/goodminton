@@ -1,11 +1,15 @@
 import { redirect } from 'next/navigation';
 import { getSessionClub } from '@/lib/auth';
 import { AccessClubForm } from '@/components/access-club-form';
+import { ensureDemoClubReady } from '@/lib/demo';
+import { loadPublicClubs } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const club = await getSessionClub();
   if (club) redirect('/matches');
-  return <AccessClubForm />;
+  await ensureDemoClubReady();
+  const clubs = await loadPublicClubs();
+  return <AccessClubForm clubs={clubs} />;
 }

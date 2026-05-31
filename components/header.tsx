@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getSessionClub } from '@/lib/auth';
 import { TabNav } from '@/components/tab-nav';
 import { Logo } from '@/components/logo';
+import { ClubIcon } from '@/components/club-icon';
 
 export async function Header() {
   const club = await getSessionClub();
@@ -12,7 +13,7 @@ export async function Header() {
           href={club ? '/matches' : '/'}
           className="flex items-center gap-1.5 text-base font-semibold tracking-tight"
         >
-          <Logo size={18} />
+          {club ? <ClubIcon icon={club.icon} size={18} /> : <Logo size={18} />}
           <span className="truncate">{club?.name ?? 'Goodminton'}</span>
         </Link>
         {club?.isAdmin ? (

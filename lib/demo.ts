@@ -45,6 +45,7 @@ async function getOrCreateDemoClub() {
     .insert(clubs)
     .values({
       name: 'Demo club',
+      icon: 'target',
       accessCode: DEMO_ACCESS_CODE,
       isDemo: true,
     })
@@ -131,7 +132,16 @@ export async function ensureDemoClubReady() {
     await seedDemoData(club.id);
     const [updated] = await db
       .update(clubs)
-      .set({ demoResetDate: todayIso(), updatedAt: new Date() })
+      .set({ demoResetDate: todayIso(), icon: 'target', updatedAt: new Date() })
+      .where(and(eq(clubs.id, club.id), eq(clubs.isDemo, true)))
+      .returning();
+    return updated ?? club;
+  }
+
+  if (club.icon !== 'target') {
+    const [updated] = await db
+      .update(clubs)
+      .set({ icon: 'target', updatedAt: new Date() })
       .where(and(eq(clubs.id, club.id), eq(clubs.isDemo, true)))
       .returning();
     return updated ?? club;

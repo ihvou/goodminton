@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ClubIcon, CLUB_ICON_OPTIONS } from '@/components/club-icon';
+import { DEFAULT_CLUB_ICON, type ClubIconId } from '@/lib/club-icons';
 
 export function RegisterClubForm() {
   const [clubName, setClubName] = useState('');
-  const [adminName, setAdminName] = useState('');
+  const [icon, setIcon] = useState<ClubIconId>(DEFAULT_CLUB_ICON);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +23,7 @@ export function RegisterClubForm() {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clubName, adminName, phone, password }),
+        body: JSON.stringify({ clubName, icon, phone, password }),
       });
       if (res.ok) {
         router.push('/matches');
@@ -53,19 +55,37 @@ export function RegisterClubForm() {
         />
       </label>
 
-      <label className="block">
-        <span className="mb-1.5 block text-xs font-medium text-neutral-500">
-          Admin name
+      <div>
+        <span
+          id="club-icon-label"
+          className="mb-1.5 block text-xs font-medium text-neutral-500"
+        >
+          Club icon
         </span>
-        <input
-          type="text"
-          value={adminName}
-          onChange={(e) => setAdminName(e.target.value)}
-          className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-base outline-none transition focus:border-neutral-950"
-          required
-          autoComplete="name"
-        />
-      </label>
+        <div
+          role="group"
+          aria-labelledby="club-icon-label"
+          className="grid grid-cols-6 gap-2 sm:grid-cols-7"
+        >
+          {CLUB_ICON_OPTIONS.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              aria-label={option.label}
+              aria-pressed={icon === option.id}
+              title={option.label}
+              onClick={() => setIcon(option.id)}
+              className={`flex aspect-square min-h-12 items-center justify-center rounded-xl border transition ${
+                icon === option.id
+                  ? 'border-neutral-950 bg-neutral-950 text-white'
+                  : 'border-neutral-200 text-neutral-600 hover:border-neutral-950 hover:text-neutral-950'
+              }`}
+            >
+              <ClubIcon icon={option.id} size={19} />
+            </button>
+          ))}
+        </div>
+      </div>
 
       <label className="block">
         <span className="mb-1.5 block text-xs font-medium text-neutral-500">

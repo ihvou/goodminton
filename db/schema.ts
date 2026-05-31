@@ -15,6 +15,7 @@ import {
 export const clubs = pgTable('clubs', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
+  icon: text('icon').notNull().default('trophy'),
   accessCode: text('access_code').notNull().unique(),
   isDemo: boolean('is_demo').notNull().default(false),
   demoResetDate: date('demo_reset_date'),

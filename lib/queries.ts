@@ -7,7 +7,15 @@ import { sortMembers, type Member } from '@/lib/members';
 export type ClubSummary = {
   id: string;
   name: string;
+  icon: string;
   accessCode: string;
+  isDemo: boolean;
+};
+
+export type PublicClub = {
+  id: string;
+  name: string;
+  icon: string;
   isDemo: boolean;
 };
 
@@ -42,10 +50,23 @@ export async function loadClub(clubId: string): Promise<ClubSummary | null> {
     ? {
         id: row.id,
         name: row.name,
+        icon: row.icon,
         accessCode: row.accessCode,
         isDemo: row.isDemo,
       }
     : null;
+}
+
+export async function loadPublicClubs(): Promise<PublicClub[]> {
+  return db
+    .select({
+      id: clubs.id,
+      name: clubs.name,
+      icon: clubs.icon,
+      isDemo: clubs.isDemo,
+    })
+    .from(clubs)
+    .orderBy(asc(clubs.isDemo), asc(clubs.createdAt));
 }
 
 export async function loadMembers(clubId: string): Promise<Member[]> {

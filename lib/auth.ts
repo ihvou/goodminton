@@ -5,7 +5,7 @@ import { db } from '@/db';
 import { clubAdmins, clubs } from '@/db/schema';
 import { cleanAccessCode } from '@/lib/phone';
 import { verifyPassword } from '@/lib/passwords';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 export type SessionData = {
   clubId?: string;
@@ -54,6 +54,7 @@ export async function getSessionClub() {
   return {
     id: club.id,
     name: club.name,
+    icon: club.icon,
     isDemo: club.isDemo,
     isAdmin: !!session.isAdmin,
     adminId: session.adminId ?? null,
@@ -108,9 +109,20 @@ export async function findClubByAccessCode(accessCode: string) {
   });
 }
 
+export async function findClubByAccessCodeForClub(
+  clubId: string,
+  accessCode: string,
+) {
+  const code = cleanAccessCode(accessCode);
+  return db.query.clubs.findFirst({
+    where: and(eq(clubs.id, clubId), eq(clubs.accessCode, code)),
+  });
+}
+
 export async function verifyAdminCredentials(
   phone: string,
   password: string,
+  clubId?: string,
 ): Promise<
   | {
       adminId: string;
@@ -121,7 +133,9 @@ export async function verifyAdminCredentials(
 > {
   const normalizedPhone = cleanAccessCode(phone);
   const admin = await db.query.clubAdmins.findFirst({
-    where: eq(clubAdmins.phone, normalizedPhone),
+    where: clubId
+      ? and(eq(clubAdmins.clubId, clubId), eq(clubAdmins.phone, normalizedPhone))
+      : eq(clubAdmins.phone, normalizedPhone),
   });
   if (!admin) return null;
   const ok = await verifyPassword(password, admin.passwordHash);

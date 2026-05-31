@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Trash2 } from 'lucide-react';
 import type { DayMatch, DayTeam } from '@/lib/queries';
 import { getMemberOrFallback, type Member } from '@/lib/members';
@@ -41,6 +42,7 @@ export function MatchCard({
   }) => void;
   closePicker: () => void;
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const hasScores = match.scoreA !== null && match.scoreB !== null;
@@ -70,6 +72,7 @@ export function MatchCard({
               [slot1]: team.playerA,
               [slot2]: team.playerB,
             });
+            router.refresh();
           } catch (e) {
             setError(e instanceof Error ? e.message : 'Failed to save');
           }
@@ -82,6 +85,7 @@ export function MatchCard({
         startTransition(async () => {
           try {
             await updateMatch({ id: match.id, [slot]: member.id });
+            router.refresh();
           } catch (e) {
             setError(e instanceof Error ? e.message : 'Failed to save');
           }
@@ -100,6 +104,7 @@ export function MatchCard({
           id: match.id,
           ...(side === 'A' ? { scoreA: value } : { scoreB: value }),
         });
+        router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to save');
       }
@@ -111,6 +116,7 @@ export function MatchCard({
     startTransition(async () => {
       try {
         await deleteMatch({ id: match.id, playDate });
+        router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to delete');
       }

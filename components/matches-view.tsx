@@ -41,6 +41,15 @@ function matchLineup(match: DayMatch): LineupLike {
   };
 }
 
+function lineupKey(lineup: LineupLike): string {
+  return [
+    lineup.teamAP1,
+    lineup.teamAP2,
+    lineup.teamBP1,
+    lineup.teamBP2,
+  ].join('|');
+}
+
 export function MatchesView({
   selectedDate,
   dayList,
@@ -64,10 +73,22 @@ export function MatchesView({
   const [draftLineups, setDraftLineups] = useState<Record<string, LineupLike>>(
     {},
   );
+  const [savedLineups, setSavedLineups] = useState<Record<string, LineupLike>>(
+    {},
+  );
   const playingMembers = useMemo(
     () => members.filter((member) => member.isPlaying),
     [members],
   );
+  const serverLineupKeys = useMemo(
+    () => new Set(matches.map(matchLineup).map(lineupKey)),
+    [matches],
+  );
+  const locallySavedLineups = useMemo(() => {
+    return Object.values(savedLineups).filter(
+      (lineup) => !serverLineupKeys.has(lineupKey(lineup)),
+    );
+  }, [savedLineups, serverLineupKeys]);
 
   const openPicker = useCallback(
     (args: PickerArgs) => {
@@ -99,6 +120,7 @@ export function MatchesView({
     setPicker(null);
     setDrafts([]);
     setDraftLineups({});
+    setSavedLineups({});
     if (iso === selectedDate) return;
     const params = new URLSearchParams();
     params.set('d', iso);
@@ -147,14 +169,18 @@ export function MatchesView({
             allMembers={members}
             dayMatches={matches}
             dayTeams={dayTeams}
-            reservedLineups={Object.entries(draftLineups)
-              .filter(([id]) => id !== draftId)
-              .map(([, lineup]) => lineup)}
+            reservedLineups={[
+              ...locallySavedLineups,
+              ...Object.entries(draftLineups)
+                .filter(([id]) => id !== draftId)
+                .map(([, lineup]) => lineup),
+            ]}
             blockedPlayerIds={[
               ...matches
                 .filter((match) => match.scoreA === null || match.scoreB === null)
                 .flatMap(matchLineup)
                 .flatMap(lineupPlayerIds),
+              ...locallySavedLineups.flatMap(lineupPlayerIds),
               ...Object.entries(draftLineups)
                 .filter(([id]) => id !== draftId)
                 .map(([, lineup]) => lineup)
@@ -172,7 +198,10 @@ export function MatchesView({
               });
             }}
             onCancel={() => removeDraft(draftId)}
-            onSaved={() => removeDraft(draftId)}
+            onSaved={(lineup) => {
+              setSavedLineups((lineups) => ({ ...lineups, [draftId]: lineup }));
+              removeDraft(draftId);
+            }}
             openPicker={openPicker}
             closePicker={closePicker}
           />

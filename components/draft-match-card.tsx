@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { getMemberOrFallback, type Member } from '@/lib/members';
 import type { DayMatch, DayTeam, MatchWithDate } from '@/lib/queries';
@@ -108,10 +109,11 @@ export function DraftMatchCard({
   allMatches: MatchWithDate[];
   onLineupChange: (lineup: LineupLike | null) => void;
   onCancel: () => void;
-  onSaved: () => void;
+  onSaved: (lineup: LineupLike) => void;
   openPicker: (args: PickerArgs) => void;
   closePicker: () => void;
 }) {
+  const router = useRouter();
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [active, setActive] = useState<Slot>('teamAP1');
   const [error, setError] = useState<string | null>(null);
@@ -208,7 +210,8 @@ export function DraftMatchCard({
   }
 
   function createPlannedMatch(d: Draft) {
-    if (!d.teamAP1 || !d.teamAP2 || !d.teamBP1 || !d.teamBP2) return;
+    const lineup = draftLineup(d);
+    if (!lineup) return;
     setError(null);
     startTransition(async () => {
       try {
@@ -219,7 +222,8 @@ export function DraftMatchCard({
           teamBP1: d.teamBP1!,
           teamBP2: d.teamBP2!,
         });
-        onSaved();
+        onSaved(lineup);
+        router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to save');
       }

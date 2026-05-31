@@ -1,4 +1,5 @@
 import type { Member } from '@/lib/members';
+import type { RotationAlgorithm } from '@/lib/club-settings';
 
 export type LineupLike = {
   teamAP1: string;
@@ -19,8 +20,10 @@ export type TeamSuggestion = {
 
 type Candidate = TeamSuggestion & {
   repeatedPairs: number;
+  repeatedOpponents: number;
   balanceGap: number;
   dayLoad: number;
+  ratingSpread: number;
   stableKey: string;
 };
 
@@ -57,11 +60,17 @@ function combinationsOfFour(ids: string[]): [string, string, string, string][] {
 
 function buildDayMaps(dayLineups: LineupLike[]) {
   const pairCounts = new Map<string, number>();
+  const opponentCounts = new Map<string, number>();
   const playerCounts = new Map<string, number>();
 
   for (const lineup of dayLineups) {
     increment(pairCounts, pairKey(lineup.teamAP1, lineup.teamAP2));
     increment(pairCounts, pairKey(lineup.teamBP1, lineup.teamBP2));
+    for (const a of [lineup.teamAP1, lineup.teamAP2]) {
+      for (const b of [lineup.teamBP1, lineup.teamBP2]) {
+        increment(opponentCounts, pairKey(a, b));
+      }
+    }
     for (const id of [
       lineup.teamAP1,
       lineup.teamAP2,
@@ -72,7 +81,7 @@ function buildDayMaps(dayLineups: LineupLike[]) {
     }
   }
 
-  return { pairCounts, playerCounts };
+  return { opponentCounts, pairCounts, playerCounts };
 }
 
 function buildAverageScores(allMatches: MatchLike[]) {
@@ -108,11 +117,13 @@ export function suggestTeams({
   dayLineups,
   allMatches,
   blockedPlayerIds = [],
+  rotationAlgorithm = 'balanced',
 }: {
   members: Member[];
   dayLineups: LineupLike[];
   allMatches: MatchLike[];
   blockedPlayerIds?: string[];
+  rotationAlgorithm?: RotationAlgorithm;
 }): TeamSuggestion | null {
   const blocked = new Set(blockedPlayerIds);
   const eligibleIds = [...members]
@@ -122,20 +133,86 @@ export function suggestTeams({
 
   if (eligibleIds.length < 4) return null;
 
-  const { pairCounts, playerCounts } = buildDayMaps(dayLineups);
+  const { opponentCounts, pairCounts, playerCounts } = buildDayMaps(dayLineups);
   const averageScore = buildAverageScores(allMatches);
   let best: Candidate | null = null;
+
+  function isBetter(candidate: Candidate, current: Candidate | null): boolean {
+    if (!current) return true;
+    if (rotationAlgorithm === 'americano') {
+      return (
+        candidate.repeatedPairs < current.repeatedPairs ||
+        (candidate.repeatedPairs === current.repeatedPairs &&
+          candidate.repeatedOpponents < current.repeatedOpponents) ||
+        (candidate.repeatedPairs === current.repeatedPairs &&
+          candidate.repeatedOpponents === current.repeatedOpponents &&
+          candidate.dayLoad < current.dayLoad) ||
+        (candidate.repeatedPairs === current.repeatedPairs &&
+          candidate.repeatedOpponents === current.repeatedOpponents &&
+          candidate.dayLoad === current.dayLoad &&
+          candidate.balanceGap < current.balanceGap) ||
+        (candidate.repeatedPairs === current.repeatedPairs &&
+          candidate.repeatedOpponents === current.repeatedOpponents &&
+          candidate.dayLoad === current.dayLoad &&
+          candidate.balanceGap === current.balanceGap &&
+          candidate.stableKey < current.stableKey)
+      );
+    }
+    if (rotationAlgorithm === 'mexicano') {
+      return (
+        candidate.repeatedPairs < current.repeatedPairs ||
+        (candidate.repeatedPairs === current.repeatedPairs &&
+          candidate.ratingSpread < current.ratingSpread) ||
+        (candidate.repeatedPairs === current.repeatedPairs &&
+          candidate.ratingSpread === current.ratingSpread &&
+          candidate.balanceGap < current.balanceGap) ||
+        (candidate.repeatedPairs === current.repeatedPairs &&
+          candidate.ratingSpread === current.ratingSpread &&
+          candidate.balanceGap === current.balanceGap &&
+          candidate.dayLoad < current.dayLoad) ||
+        (candidate.repeatedPairs === current.repeatedPairs &&
+          candidate.ratingSpread === current.ratingSpread &&
+          candidate.balanceGap === current.balanceGap &&
+          candidate.dayLoad === current.dayLoad &&
+          candidate.stableKey < current.stableKey)
+      );
+    }
+    return (
+      candidate.repeatedPairs < current.repeatedPairs ||
+      (candidate.repeatedPairs === current.repeatedPairs &&
+        candidate.dayLoad < current.dayLoad) ||
+      (candidate.repeatedPairs === current.repeatedPairs &&
+        candidate.dayLoad === current.dayLoad &&
+        candidate.balanceGap < current.balanceGap) ||
+      (candidate.repeatedPairs === current.repeatedPairs &&
+        candidate.dayLoad === current.dayLoad &&
+        candidate.balanceGap === current.balanceGap &&
+        candidate.stableKey < current.stableKey)
+    );
+  }
 
   for (const ids of combinationsOfFour(eligibleIds)) {
     for (const pairing of teamPairings(ids)) {
       const repeatedPairs =
         (pairCounts.get(pairKey(pairing.teamA[0], pairing.teamA[1])) ?? 0) +
         (pairCounts.get(pairKey(pairing.teamB[0], pairing.teamB[1])) ?? 0);
+      const repeatedOpponents = pairing.teamA.reduce(
+        (sum, a) =>
+          sum +
+          pairing.teamB.reduce(
+            (opponentSum, b) =>
+              opponentSum + (opponentCounts.get(pairKey(a, b)) ?? 0),
+            0,
+          ),
+        0,
+      );
       const teamAStrength =
         averageScore(pairing.teamA[0]) + averageScore(pairing.teamA[1]);
       const teamBStrength =
         averageScore(pairing.teamB[0]) + averageScore(pairing.teamB[1]);
       const balanceGap = Math.abs(teamAStrength - teamBStrength);
+      const playerRatings = [...pairing.teamA, ...pairing.teamB].map(averageScore);
+      const ratingSpread = Math.max(...playerRatings) - Math.min(...playerRatings);
       const dayLoad = [...pairing.teamA, ...pairing.teamB].reduce(
         (sum, id) => sum + (playerCounts.get(id) ?? 0),
         0,
@@ -144,24 +221,14 @@ export function suggestTeams({
       const candidate: Candidate = {
         ...pairing,
         repeatedPairs,
+        repeatedOpponents,
         balanceGap,
         dayLoad,
+        ratingSpread,
         stableKey,
       };
 
-      if (
-        !best ||
-        candidate.repeatedPairs < best.repeatedPairs ||
-        (candidate.repeatedPairs === best.repeatedPairs &&
-          candidate.dayLoad < best.dayLoad) ||
-        (candidate.repeatedPairs === best.repeatedPairs &&
-          candidate.dayLoad === best.dayLoad &&
-          candidate.balanceGap < best.balanceGap) ||
-        (candidate.repeatedPairs === best.repeatedPairs &&
-          candidate.dayLoad === best.dayLoad &&
-          candidate.balanceGap === best.balanceGap &&
-          candidate.stableKey < best.stableKey)
-      ) {
+      if (isBetter(candidate, best)) {
         best = candidate;
       }
     }

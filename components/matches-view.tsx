@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { DayMatch, DayTeam, MatchWithDate } from '@/lib/queries';
 import type { Member } from '@/lib/members';
 import type { LineupLike } from '@/lib/auto-teams';
+import type { RotationAlgorithm } from '@/lib/club-settings';
 import { MemberPicker } from './member-picker';
 import { MatchCard } from './match-card';
 import { DraftMatchCard } from './draft-match-card';
@@ -58,6 +59,7 @@ export function MatchesView({
   dayTeams,
   members,
   isAdmin,
+  rotationAlgorithm,
 }: {
   selectedDate: string;
   dayList: DayItem[];
@@ -66,6 +68,7 @@ export function MatchesView({
   dayTeams: DayTeam[];
   members: Member[];
   isAdmin: boolean;
+  rotationAlgorithm: RotationAlgorithm;
 }) {
   const router = useRouter();
   const [picker, setPicker] = useState<PickerState>(null);
@@ -187,6 +190,7 @@ export function MatchesView({
                 .flatMap(lineupPlayerIds),
             ]}
             allMatches={allMatches}
+            rotationAlgorithm={rotationAlgorithm}
             onLineupChange={(lineup) => {
               setDraftLineups((lineups) => {
                 if (!lineup) {

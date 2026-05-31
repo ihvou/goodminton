@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getSessionClub } from '@/lib/auth';
 import {
   loadAllMatches,
+  loadClubSettings,
   loadDayCounts,
   loadDayTeams,
   loadMembers,
@@ -29,20 +30,27 @@ export default async function PlayersPage({
   if (!club.isAdmin) redirect('/login');
   const params = await searchParams;
   const today = todayIso();
-  const [members, allMatches, dayCounts] = await Promise.all([
+  const [members, allMatches, dayCounts, settings] = await Promise.all([
     loadMembers(club.id),
     loadAllMatches(club.id),
     loadDayCounts(club.id),
+    loadClubSettings(club.id),
   ]);
-  const fallbackDate = toIsoDate(latestPlayDayOnOrBefore(fromIsoDate(today)));
+  const fallbackDate = toIsoDate(
+    latestPlayDayOnOrBefore(fromIsoDate(today), settings.playWeekdays),
+  );
   const selectedDate = params.d ?? fallbackDate;
   const teams = await loadDayTeams(club.id, selectedDate);
 
   const matchDates = Array.from(dayCounts.entries())
     .filter(([, count]) => count > 0)
     .map(([iso]) => iso);
-  const thisWeek = currentWeekPlayDays().map(toIsoDate);
-  const upcoming = upcomingPlayDays(fromIsoDate(today), 2).map(toIsoDate);
+  const thisWeek = currentWeekPlayDays(settings.playWeekdays).map(toIsoDate);
+  const upcoming = upcomingPlayDays(
+    fromIsoDate(today),
+    2,
+    settings.playWeekdays,
+  ).map(toIsoDate);
   const allDates = new Set<string>([
     ...matchDates.filter((iso) => isPast(iso)),
     ...thisWeek,

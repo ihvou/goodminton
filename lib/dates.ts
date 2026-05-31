@@ -1,9 +1,6 @@
 import {
   addDays,
   format,
-  isMonday,
-  isWednesday,
-  isFriday,
   startOfWeek,
   parseISO,
   isAfter,
@@ -11,11 +8,19 @@ import {
   startOfDay,
 } from 'date-fns';
 import { CLUB_TIMEZONE } from './config';
+import { DEFAULT_PLAY_WEEKDAYS, sortWeekdays } from '@/lib/club-settings';
 
-export const PLAY_WEEKDAYS = [1, 3, 5] as const; // Mon, Wed, Fri
+export const PLAY_WEEKDAYS = DEFAULT_PLAY_WEEKDAYS;
 
-export function isPlayDay(d: Date): boolean {
-  return isMonday(d) || isWednesday(d) || isFriday(d);
+function weekdayOffset(weekday: number): number {
+  return weekday === 0 ? 6 : weekday - 1;
+}
+
+export function isPlayDay(
+  d: Date,
+  playWeekdays: readonly number[] = DEFAULT_PLAY_WEEKDAYS,
+): boolean {
+  return playWeekdays.includes(d.getDay());
 }
 
 export function toIsoDate(d: Date): string {
@@ -60,26 +65,38 @@ export function isFuture(iso: string): boolean {
   return isAfter(parseISO(iso), startOfDay(todayDate()));
 }
 
-/** Mon/Wed/Fri of the week containing `today`. */
-export function currentWeekPlayDays(today = todayDate()): Date[] {
+/** Configured play days of the week containing `today`. */
+export function currentWeekPlayDays(
+  playWeekdays: readonly number[] = DEFAULT_PLAY_WEEKDAYS,
+  today = todayDate(),
+): Date[] {
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
-  return [0, 2, 4].map((offset) => addDays(weekStart, offset));
+  return sortWeekdays(playWeekdays).map((weekday) =>
+    addDays(weekStart, weekdayOffset(weekday)),
+  );
 }
 
 /** Next N play days strictly after `after`. */
-export function upcomingPlayDays(after: Date, count: number): Date[] {
+export function upcomingPlayDays(
+  after: Date,
+  count: number,
+  playWeekdays: readonly number[] = DEFAULT_PLAY_WEEKDAYS,
+): Date[] {
   const out: Date[] = [];
   let cursor = addDays(after, 1);
   while (out.length < count) {
-    if (isPlayDay(cursor)) out.push(cursor);
+    if (isPlayDay(cursor, playWeekdays)) out.push(cursor);
     cursor = addDays(cursor, 1);
   }
   return out;
 }
 
-export function latestPlayDayOnOrBefore(date: Date): Date {
+export function latestPlayDayOnOrBefore(
+  date: Date,
+  playWeekdays: readonly number[] = DEFAULT_PLAY_WEEKDAYS,
+): Date {
   let cursor = date;
-  while (!isPlayDay(cursor)) {
+  while (!isPlayDay(cursor, playWeekdays)) {
     cursor = addDays(cursor, -1);
   }
   return cursor;

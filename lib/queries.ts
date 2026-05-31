@@ -3,11 +3,17 @@ import { db } from '@/db';
 import { clubs, dayTeams, playSessions, matches, members } from '@/db/schema';
 import { and, eq, asc, sql } from 'drizzle-orm';
 import { sortMembers, type Member } from '@/lib/members';
+import {
+  cleanRotationAlgorithm,
+  parseWeekdays,
+  type ClubSettings,
+} from '@/lib/club-settings';
 
 export type ClubSummary = {
   id: string;
   name: string;
   icon: string;
+  settings: ClubSettings;
   accessCode: string;
   isDemo: boolean;
 };
@@ -51,10 +57,28 @@ export async function loadClub(clubId: string): Promise<ClubSummary | null> {
         id: row.id,
         name: row.name,
         icon: row.icon,
+        settings: {
+          playWeekdays: parseWeekdays(row.playWeekdays),
+          rotationAlgorithm: cleanRotationAlgorithm(row.rotationAlgorithm),
+        },
         accessCode: row.accessCode,
         isDemo: row.isDemo,
       }
     : null;
+}
+
+export async function loadClubSettings(clubId: string): Promise<ClubSettings> {
+  const row = await db.query.clubs.findFirst({
+    columns: {
+      playWeekdays: true,
+      rotationAlgorithm: true,
+    },
+    where: eq(clubs.id, clubId),
+  });
+  return {
+    playWeekdays: parseWeekdays(row?.playWeekdays),
+    rotationAlgorithm: cleanRotationAlgorithm(row?.rotationAlgorithm),
+  };
 }
 
 export async function loadPublicClubs(): Promise<PublicClub[]> {

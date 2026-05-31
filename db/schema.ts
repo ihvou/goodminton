@@ -16,6 +16,8 @@ export const clubs = pgTable('clubs', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   icon: text('icon').notNull().default('trophy'),
+  playWeekdays: text('play_weekdays').notNull().default('1,3,5'),
+  rotationAlgorithm: text('rotation_algorithm').notNull().default('balanced'),
   accessCode: text('access_code').notNull().unique(),
   isDemo: boolean('is_demo').notNull().default(false),
   demoResetDate: date('demo_reset_date'),

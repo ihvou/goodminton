@@ -6,6 +6,7 @@ import { X } from 'lucide-react';
 import { getMemberOrFallback, type Member } from '@/lib/members';
 import type { DayMatch, DayTeam, MatchWithDate } from '@/lib/queries';
 import { suggestTeams, type LineupLike } from '@/lib/auto-teams';
+import type { RotationAlgorithm } from '@/lib/club-settings';
 import { Avatar } from './avatar';
 import { cn } from '@/lib/utils';
 import { createMatch } from '@/lib/actions';
@@ -93,6 +94,7 @@ export function DraftMatchCard({
   reservedLineups,
   blockedPlayerIds,
   allMatches,
+  rotationAlgorithm,
   onLineupChange,
   onCancel,
   onSaved,
@@ -107,6 +109,7 @@ export function DraftMatchCard({
   reservedLineups: LineupLike[];
   blockedPlayerIds: string[];
   allMatches: MatchWithDate[];
+  rotationAlgorithm: RotationAlgorithm;
   onLineupChange: (lineup: LineupLike | null) => void;
   onCancel: () => void;
   onSaved: (lineup: LineupLike) => void;
@@ -174,6 +177,7 @@ export function DraftMatchCard({
       dayLineups: [...dayMatches, ...reservedLineups],
       allMatches,
       blockedPlayerIds,
+      rotationAlgorithm,
     });
 
     if (!suggestion) {

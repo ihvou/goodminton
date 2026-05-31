@@ -11,9 +11,15 @@ const TABS = [
 
 export function TabNav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
-  const tabs = isAdmin ? [...TABS, { href: '/players', label: 'Players' }] : TABS;
+  const tabs = isAdmin
+    ? [
+        ...TABS,
+        { href: '/players', label: 'Players' },
+        { href: '/configuration', label: 'Configuration' },
+      ]
+    : TABS;
   return (
-    <nav className="mx-auto flex max-w-screen-md items-center gap-6 px-4">
+    <nav className="mx-auto flex max-w-screen-md items-center gap-6 overflow-x-auto px-4">
       {tabs.map((tab) => {
         const active = pathname.startsWith(tab.href);
         return (
@@ -21,7 +27,7 @@ export function TabNav({ isAdmin }: { isAdmin: boolean }) {
             key={tab.href}
             href={tab.href}
             className={cn(
-              'relative -mb-px py-3 text-sm transition',
+              'relative -mb-px shrink-0 py-3 text-sm transition',
               active
                 ? 'font-semibold text-neutral-950'
                 : 'text-neutral-500 hover:text-neutral-950',

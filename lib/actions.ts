@@ -1,12 +1,18 @@
 'use server';
 
 import { db } from '@/db';
-import { dayTeams, members, playSessions, matches } from '@/db/schema';
+import { clubs, dayTeams, members, playSessions, matches } from '@/db/schema';
 import { requireAdmin } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { and, eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { DEFAULT_MEMBERS, isDefaultMember } from '@/lib/members';
 import { loadMembers } from '@/lib/queries';
+import {
+  cleanRotationAlgorithm,
+  cleanWeekdays,
+  serializeWeekdays,
+  type ClubSettings,
+} from '@/lib/club-settings';
 
 const MAX_AVATAR_LENGTH = 1_500_000;
 
@@ -134,6 +140,13 @@ function revalidateRosterPaths() {
   revalidatePath('/');
   revalidatePath('/stats');
   revalidatePath('/players');
+}
+
+function revalidateClubSettingsPaths() {
+  revalidatePath('/');
+  revalidatePath('/matches');
+  revalidatePath('/players');
+  revalidatePath('/configuration');
 }
 
 async function findOrCreateSession(
@@ -466,4 +479,21 @@ export async function deleteMatch(input: { id: string; playDate: string }) {
   revalidatePath('/');
   revalidatePath('/matches');
   revalidatePath('/stats');
+}
+
+export async function updateClubSettings(input: ClubSettings) {
+  const { clubId } = await requireAdmin();
+  const playWeekdays = cleanWeekdays(input.playWeekdays);
+  const rotationAlgorithm = cleanRotationAlgorithm(input.rotationAlgorithm);
+
+  await db
+    .update(clubs)
+    .set({
+      playWeekdays: serializeWeekdays(playWeekdays),
+      rotationAlgorithm,
+      updatedAt: new Date(),
+    })
+    .where(eq(clubs.id, clubId));
+
+  revalidateClubSettingsPaths();
 }

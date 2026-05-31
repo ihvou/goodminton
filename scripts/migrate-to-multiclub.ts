@@ -7,15 +7,15 @@ config({ path: '.env.local' });
 const scryptAsync = promisify(scrypt);
 const DEMO_ACCESS_CODE = 'demo';
 const DEMO_PASSWORD = 'demo';
-const DEMO_MEMBER_IDS = [
-  'tsugi',
-  'rahmad',
-  'hadrien',
-  'denis',
-  'arif',
-  'matej',
-  'scott',
-  'vincent',
+const DEMO_MEMBERS = [
+  { id: 'aiko', name: 'Aiko Tan', avatar: '/avatars/demo-aiko.svg' },
+  { id: 'bruno', name: 'Bruno Lee', avatar: '/avatars/demo-bruno.svg' },
+  { id: 'carmen', name: 'Carmen Wu', avatar: '/avatars/demo-carmen.svg' },
+  { id: 'diego', name: 'Diego Ramos', avatar: '/avatars/demo-diego.svg' },
+  { id: 'elena', name: 'Elena Park', avatar: '/avatars/demo-elena.svg' },
+  { id: 'farid', name: 'Farid Noor', avatar: '/avatars/demo-farid.svg' },
+  { id: 'mira', name: 'Mira Chen', avatar: '/avatars/demo-mira.svg' },
+  { id: 'niko', name: 'Niko Hart', avatar: '/avatars/demo-niko.svg' },
 ] as const;
 
 async function hashPassword(password: string): Promise<string> {
@@ -71,7 +71,7 @@ async function main() {
   const tsugiPhone = cleanAccessCode(
     process.env.TSUGI_ADMIN_PHONE ||
       process.env.ADMIN_USERNAME ||
-      'tsugi-admin',
+      '6282340732720',
   );
   const tsugiPassword = process.env.TSUGI_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD;
   if (!tsugiPassword) {
@@ -163,25 +163,22 @@ async function main() {
   await db.delete(playSessions).where(eq(playSessions.clubId, demoClub.id));
   await db.delete(members).where(eq(members.clubId, demoClub.id));
   await db.insert(members).values(
-    DEMO_MEMBER_IDS.map((id) => {
-      const member = DEFAULT_MEMBERS.find((m) => m.id === id)!;
-      return {
-        id: demoMemberId(member.id),
-        clubId: demoClub.id,
-        name: member.name,
-        avatar: member.avatar ?? null,
-        isActive: true,
-        isPlaying: true,
-        updatedAt: new Date(),
-      };
-    }),
+    DEMO_MEMBERS.map((member) => ({
+      id: demoMemberId(member.id),
+      clubId: demoClub.id,
+      name: member.name,
+      avatar: member.avatar,
+      isActive: true,
+      isPlaying: true,
+      updatedAt: new Date(),
+    })),
   );
   for (const [index, playDate] of recentPlayDates(4).entries()) {
     const [session] = await db
       .insert(playSessions)
       .values({ clubId: demoClub.id, playDate })
       .returning({ id: playSessions.id });
-    const ids = DEMO_MEMBER_IDS.map(demoMemberId);
+    const ids = DEMO_MEMBERS.map((member) => demoMemberId(member.id));
     await db.insert(matches).values([
       {
         sessionId: session.id,

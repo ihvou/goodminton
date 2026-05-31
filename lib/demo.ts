@@ -3,26 +3,36 @@ import { db } from '@/db';
 import { clubAdmins, clubs, matches, members, playSessions } from '@/db/schema';
 import { hashPassword } from '@/lib/passwords';
 import { todayDate, todayIso, toIsoDate, isPlayDay } from '@/lib/dates';
-import { DEFAULT_MEMBERS } from '@/lib/members';
 import { and, eq } from 'drizzle-orm';
 import { addDays } from 'date-fns';
 
 export const DEMO_ACCESS_CODE = 'demo';
 export const DEMO_PASSWORD = 'demo';
 
-const DEMO_MEMBER_IDS = [
-  'tsugi',
-  'rahmad',
-  'hadrien',
-  'denis',
-  'arif',
-  'matej',
-  'scott',
-  'vincent',
+const DEMO_MEMBERS = [
+  { id: 'aiko', name: 'Aiko Tan', avatar: '/avatars/demo-aiko.svg' },
+  { id: 'bruno', name: 'Bruno Lee', avatar: '/avatars/demo-bruno.svg' },
+  { id: 'carmen', name: 'Carmen Wu', avatar: '/avatars/demo-carmen.svg' },
+  { id: 'diego', name: 'Diego Ramos', avatar: '/avatars/demo-diego.svg' },
+  { id: 'elena', name: 'Elena Park', avatar: '/avatars/demo-elena.svg' },
+  { id: 'farid', name: 'Farid Noor', avatar: '/avatars/demo-farid.svg' },
+  { id: 'mira', name: 'Mira Chen', avatar: '/avatars/demo-mira.svg' },
+  { id: 'niko', name: 'Niko Hart', avatar: '/avatars/demo-niko.svg' },
 ] as const;
 
 function demoMemberId(id: string) {
   return `demo-${id}`;
+}
+
+async function hasCurrentDemoRoster(clubId: string): Promise<boolean> {
+  const firstDemoMember = DEMO_MEMBERS[0];
+  const member = await db.query.members.findFirst({
+    where: and(
+      eq(members.clubId, clubId),
+      eq(members.id, demoMemberId(firstDemoMember.id)),
+    ),
+  });
+  return !!member;
 }
 
 function recentPlayDates(count: number): string[] {
@@ -71,18 +81,15 @@ async function seedDemoData(clubId: string) {
   await db.delete(playSessions).where(eq(playSessions.clubId, clubId));
   await db.delete(members).where(eq(members.clubId, clubId));
 
-  const demoMembers = DEMO_MEMBER_IDS.map((id) => {
-    const member = DEFAULT_MEMBERS.find((m) => m.id === id)!;
-    return {
-      id: demoMemberId(member.id),
-      clubId,
-      name: member.name,
-      avatar: member.avatar ?? null,
-      isActive: true,
-      isPlaying: true,
-      updatedAt: new Date(),
-    };
-  });
+  const demoMembers = DEMO_MEMBERS.map((member) => ({
+    id: demoMemberId(member.id),
+    clubId,
+    name: member.name,
+    avatar: member.avatar,
+    isActive: true,
+    isPlaying: true,
+    updatedAt: new Date(),
+  }));
   await db.insert(members).values(demoMembers);
 
   const dates = recentPlayDates(4);
@@ -91,7 +98,7 @@ async function seedDemoData(clubId: string) {
       .insert(playSessions)
       .values({ clubId, playDate })
       .returning({ id: playSessions.id });
-    const ids = DEMO_MEMBER_IDS.map(demoMemberId);
+    const ids = DEMO_MEMBERS.map((member) => demoMemberId(member.id));
     await db.insert(matches).values([
       {
         sessionId: session.id,
@@ -128,7 +135,7 @@ export async function ensureDemoClubReady() {
   const club = await getOrCreateDemoClub();
   await ensureDemoAdmin(club.id);
 
-  if (club.demoResetDate !== todayIso()) {
+  if (club.demoResetDate !== todayIso() || !(await hasCurrentDemoRoster(club.id))) {
     await seedDemoData(club.id);
     const [updated] = await db
       .update(clubs)

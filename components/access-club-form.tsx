@@ -28,6 +28,26 @@ export function AccessClubForm({ clubs }: { clubs: PublicClub[] }) {
     setError(null);
   }
 
+  async function openDemoClub() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/demo', { method: 'POST' });
+      if (res.ok) {
+        router.push('/matches');
+        router.refresh();
+        return;
+      }
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setError(data.error ?? 'Demo club is not available');
+    } catch {
+      setError('Network error. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function openClub() {
     if (!selectedClub) return;
     if (busy) return;
@@ -99,12 +119,20 @@ export function AccessClubForm({ clubs }: { clubs: PublicClub[] }) {
 
       {!selectedClub ? (
         <div className="space-y-3">
+          {error && <p className="text-sm text-red-600">{error}</p>}
           {clubs.map((club) => (
             <button
               key={club.id}
               type="button"
-              onClick={() => selectClub(club)}
-              className="flex w-full items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-4 text-left transition hover:border-neutral-950 focus:border-neutral-950 focus:outline-none"
+              disabled={busy}
+              onClick={() => {
+                if (club.isDemo) {
+                  void openDemoClub();
+                  return;
+                }
+                selectClub(club);
+              }}
+              className="flex w-full items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-4 text-left transition hover:border-neutral-950 focus:border-neutral-950 focus:outline-none disabled:opacity-50"
             >
               <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-neutral-950 text-white">
                 <ClubIcon icon={club.icon} size={21} />

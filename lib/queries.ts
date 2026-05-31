@@ -1,12 +1,15 @@
 import 'server-only';
 import { db } from '@/db';
-import { dayTeams, playSessions, matches, members } from '@/db/schema';
-import { eq, asc, sql } from 'drizzle-orm';
-import {
-  DEFAULT_MEMBERS,
-  sortMembers,
-  type Member,
-} from '@/lib/members';
+import { clubs, dayTeams, playSessions, matches, members } from '@/db/schema';
+import { and, eq, asc, sql } from 'drizzle-orm';
+import { sortMembers, type Member } from '@/lib/members';
+
+export type ClubSummary = {
+  id: string;
+  name: string;
+  accessCode: string;
+  isDemo: boolean;
+};
 
 export type DayMatch = {
   id: string;
@@ -31,7 +34,21 @@ export type DayTeam = {
   createdAt: Date;
 };
 
-export async function loadMembers(): Promise<Member[]> {
+export async function loadClub(clubId: string): Promise<ClubSummary | null> {
+  const row = await db.query.clubs.findFirst({
+    where: eq(clubs.id, clubId),
+  });
+  return row
+    ? {
+        id: row.id,
+        name: row.name,
+        accessCode: row.accessCode,
+        isDemo: row.isDemo,
+      }
+    : null;
+}
+
+export async function loadMembers(clubId: string): Promise<Member[]> {
   const rows = await db
     .select({
       id: members.id,
@@ -41,31 +58,25 @@ export async function loadMembers(): Promise<Member[]> {
       isPlaying: members.isPlaying,
     })
     .from(members)
+    .where(and(eq(members.clubId, clubId), eq(members.isActive, true)))
     .orderBy(asc(members.name));
 
-  const byId = new Map<string, Member>(
-    DEFAULT_MEMBERS.map((m) => [m.id, { ...m }]),
-  );
-
-  for (const row of rows) {
-    if (!row.isActive) {
-      byId.delete(row.id);
-      continue;
-    }
-    byId.set(row.id, {
+  return sortMembers(
+    rows.map((row) => ({
       id: row.id,
       name: row.name,
       avatar: row.avatar,
       isPlaying: row.isPlaying,
-    });
-  }
-
-  return sortMembers(Array.from(byId.values()));
+    })),
+  );
 }
 
-export async function loadDayMatches(playDate: string): Promise<DayMatch[]> {
+export async function loadDayMatches(
+  clubId: string,
+  playDate: string,
+): Promise<DayMatch[]> {
   const session = await db.query.playSessions.findFirst({
-    where: eq(playSessions.playDate, playDate),
+    where: and(eq(playSessions.clubId, clubId), eq(playSessions.playDate, playDate)),
   });
   if (!session) return [];
   return db
@@ -84,9 +95,12 @@ export async function loadDayMatches(playDate: string): Promise<DayMatch[]> {
     .orderBy(asc(matches.createdAt));
 }
 
-export async function loadDayTeams(playDate: string): Promise<DayTeam[]> {
+export async function loadDayTeams(
+  clubId: string,
+  playDate: string,
+): Promise<DayTeam[]> {
   const session = await db.query.playSessions.findFirst({
-    where: eq(playSessions.playDate, playDate),
+    where: and(eq(playSessions.clubId, clubId), eq(playSessions.playDate, playDate)),
   });
   if (!session) return [];
 
@@ -104,7 +118,7 @@ export async function loadDayTeams(playDate: string): Promise<DayTeam[]> {
 }
 
 /** Map of YYYY-MM-DD → match count, for every session row that has matches. */
-export async function loadDayCounts(): Promise<Map<string, number>> {
+export async function loadDayCounts(clubId: string): Promise<Map<string, number>> {
   const rows = await db
     .select({
       playDate: playSessions.playDate,
@@ -112,11 +126,12 @@ export async function loadDayCounts(): Promise<Map<string, number>> {
     })
     .from(playSessions)
     .leftJoin(matches, eq(matches.sessionId, playSessions.id))
+    .where(eq(playSessions.clubId, clubId))
     .groupBy(playSessions.playDate);
   return new Map(rows.map((r) => [r.playDate, r.count]));
 }
 
-export async function loadAllMatches(): Promise<MatchWithDate[]> {
+export async function loadAllMatches(clubId: string): Promise<MatchWithDate[]> {
   return db
     .select({
       id: matches.id,
@@ -131,5 +146,6 @@ export async function loadAllMatches(): Promise<MatchWithDate[]> {
     })
     .from(matches)
     .innerJoin(playSessions, eq(matches.sessionId, playSessions.id))
+    .where(eq(playSessions.clubId, clubId))
     .orderBy(asc(playSessions.playDate));
 }

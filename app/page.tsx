@@ -1,77 +1,11 @@
-import { isAdmin } from '@/lib/auth';
-import {
-  loadAllMatches,
-  loadDayCounts,
-  loadDayMatches,
-  loadDayTeams,
-  loadMembers,
-} from '@/lib/queries';
-import {
-  todayIso,
-  currentWeekPlayDays,
-  upcomingPlayDays,
-  toIsoDate,
-  isPast,
-  fromIsoDate,
-  latestPlayDayOnOrBefore,
-} from '@/lib/dates';
-import { MatchesView } from '@/components/matches-view';
+import { redirect } from 'next/navigation';
+import { getSessionClub } from '@/lib/auth';
+import { AccessClubForm } from '@/components/access-club-form';
 
 export const dynamic = 'force-dynamic';
 
-export default async function HomePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ d?: string }>;
-}) {
-  const params = await searchParams;
-  const today = todayIso();
-
-  const [dayCounts, admin, members, allMatches] = await Promise.all([
-    loadDayCounts(),
-    isAdmin(),
-    loadMembers(),
-    loadAllMatches(),
-  ]);
-  const matchDates = Array.from(dayCounts.entries())
-    .filter(([, count]) => count > 0)
-    .map(([iso]) => iso);
-  const sortedMatchDates = [...matchDates].sort();
-  const latestMatchDate = sortedMatchDates[sortedMatchDates.length - 1];
-  const fallbackDate = toIsoDate(latestPlayDayOnOrBefore(fromIsoDate(today)));
-  const selectedDate = params.d ?? latestMatchDate ?? fallbackDate;
-  const [matches, dayTeams] = await Promise.all([
-    loadDayMatches(selectedDate),
-    loadDayTeams(selectedDate),
-  ]);
-
-  // Build the day strip:
-  //  - play dates with games (left)
-  //  - this week's M/W/F (center)
-  //  - next 2 upcoming play days (right)
-  //  - selected date, always present
-  const pastDates = matchDates.filter((iso) => isPast(iso));
-  const thisWeek = currentWeekPlayDays().map(toIsoDate);
-  const upcoming = upcomingPlayDays(fromIsoDate(today), 2).map(toIsoDate);
-  const allDates = new Set<string>([
-    ...pastDates,
-    ...thisWeek,
-    ...upcoming,
-    selectedDate,
-  ]);
-  const dayList = Array.from(allDates)
-    .sort()
-    .map((iso) => ({ iso, count: dayCounts.get(iso) ?? 0 }));
-
-  return (
-    <MatchesView
-      selectedDate={selectedDate}
-      dayList={dayList}
-      matches={matches}
-      dayTeams={dayTeams}
-      allMatches={allMatches}
-      members={members}
-      isAdmin={admin}
-    />
-  );
+export default async function HomePage() {
+  const club = await getSessionClub();
+  if (club) redirect('/matches');
+  return <AccessClubForm />;
 }

@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:backup": "tsx scripts/backup-current-data.ts",
+    "db:migrate-multiclub": "tsx scripts/migrate-to-multiclub.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
 const TABS = [
-  { href: '/', label: 'Matches' },
+  { href: '/matches', label: 'Matches' },
   { href: '/stats', label: 'Stats' },
 ];
 
@@ -15,8 +15,7 @@ export function TabNav({ isAdmin }: { isAdmin: boolean }) {
   return (
     <nav className="mx-auto flex max-w-screen-md items-center gap-6 px-4">
       {tabs.map((tab) => {
-        const active =
-          tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href);
+        const active = pathname.startsWith(tab.href);
         return (
           <Link
             key={tab.href}

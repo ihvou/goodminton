@@ -124,7 +124,7 @@ export function MatchesView({
     if (iso === selectedDate) return;
     const params = new URLSearchParams();
     params.set('d', iso);
-    router.push('/?' + params.toString());
+    router.push('/matches?' + params.toString());
   }
 
   const total = matches.length;

@@ -1,27 +1,25 @@
 import { NextResponse } from 'next/server';
-import { getSession, verifyAdminCredentials } from '@/lib/auth';
+import { grantAdminAccess, verifyAdminCredentials } from '@/lib/auth';
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as
-    | { username?: unknown; password?: unknown }
+    | { phone?: unknown; password?: unknown }
     | null;
-  const username = body && typeof body.username === 'string' ? body.username : '';
+  const phone = body && typeof body.phone === 'string' ? body.phone : '';
   const password = body && typeof body.password === 'string' ? body.password : '';
-  if (!username || !password) {
+  if (!phone || !password) {
     return NextResponse.json(
       { error: 'Wrong login or password' },
       { status: 400 },
     );
   }
-  const ok = await verifyAdminCredentials(username, password);
-  if (!ok) {
+  const admin = await verifyAdminCredentials(phone, password);
+  if (!admin) {
     return NextResponse.json(
       { error: 'Wrong login or password' },
       { status: 401 },
     );
   }
-  const session = await getSession();
-  session.isAdmin = true;
-  await session.save();
+  await grantAdminAccess(admin);
   return NextResponse.json({ ok: true });
 }

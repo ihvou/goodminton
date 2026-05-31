@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export function LoginForm() {
+export function RegisterClubForm() {
+  const [clubName, setClubName] = useState('');
+  const [adminName, setAdminName] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -16,10 +18,10 @@ export function LoginForm() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch('/api/login', {
+      const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, password }),
+        body: JSON.stringify({ clubName, adminName, phone, password }),
       });
       if (res.ok) {
         router.push('/matches');
@@ -27,7 +29,7 @@ export function LoginForm() {
         return;
       }
       const data = (await res.json().catch(() => ({}))) as { error?: string };
-      setError(data.error ?? 'Wrong login or password');
+      setError(data.error ?? 'Could not register club');
     } catch {
       setError('Network error. Try again.');
     } finally {
@@ -37,10 +39,38 @@ export function LoginForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <div>
-        <label className="mb-1.5 block text-xs font-medium text-neutral-500">
+      <label className="block">
+        <span className="mb-1.5 block text-xs font-medium text-neutral-500">
+          Club name
+        </span>
+        <input
+          type="text"
+          value={clubName}
+          onChange={(e) => setClubName(e.target.value)}
+          className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-base outline-none transition focus:border-neutral-950"
+          required
+          autoComplete="organization"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-xs font-medium text-neutral-500">
+          Admin name
+        </span>
+        <input
+          type="text"
+          value={adminName}
+          onChange={(e) => setAdminName(e.target.value)}
+          className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-base outline-none transition focus:border-neutral-950"
+          required
+          autoComplete="name"
+        />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-xs font-medium text-neutral-500">
           Admin phone number
-        </label>
+        </span>
         <input
           type="tel"
           value={phone}
@@ -49,27 +79,30 @@ export function LoginForm() {
           required
           autoComplete="tel"
         />
-      </div>
-      <div>
-        <label className="mb-1.5 block text-xs font-medium text-neutral-500">
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-xs font-medium text-neutral-500">
           Password
-        </label>
+        </span>
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-base outline-none transition focus:border-neutral-950"
           required
-          autoComplete="current-password"
+          autoComplete="new-password"
         />
-      </div>
+      </label>
+
       {error && <p className="text-sm text-red-600">{error}</p>}
+
       <button
         type="submit"
         disabled={busy}
         className="w-full rounded-xl bg-neutral-950 py-3 text-sm font-semibold text-white transition disabled:opacity-50"
       >
-        {busy ? 'Signing in…' : 'Sign in'}
+        {busy ? 'Creating...' : 'Create club'}
       </button>
     </form>
   );

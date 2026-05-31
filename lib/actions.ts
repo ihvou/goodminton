@@ -14,9 +14,15 @@ function hasOwn<T extends object>(obj: T, key: PropertyKey): boolean {
   return Object.prototype.hasOwnProperty.call(obj, key);
 }
 
-async function validatePlayers(p1: string, p2: string, p3: string, p4: string) {
+async function validatePlayers(
+  clubId: string,
+  p1: string,
+  p2: string,
+  p3: string,
+  p4: string,
+) {
   const ids = [p1, p2, p3, p4];
-  const validIds = new Set((await loadMembers()).map((m) => m.id));
+  const validIds = new Set((await loadMembers(clubId)).map((m) => m.id));
   for (const id of ids) {
     if (!validIds.has(id)) throw new Error('Unknown member: ' + id);
   }
@@ -130,16 +136,26 @@ function revalidateRosterPaths() {
   revalidatePath('/players');
 }
 
-async function findOrCreateSession(playDate: string): Promise<string> {
+async function findOrCreateSession(
+  clubId: string,
+  playDate: string,
+): Promise<string> {
   const existing = await db.query.playSessions.findFirst({
-    where: eq(playSessions.playDate, playDate),
+    where: and(eq(playSessions.clubId, clubId), eq(playSessions.playDate, playDate)),
   });
   if (existing) return existing.id;
   const [created] = await db
     .insert(playSessions)
-    .values({ playDate })
+    .values({ clubId, playDate })
     .returning({ id: playSessions.id });
   return created.id;
+}
+
+async function assertSessionInClub(sessionId: string, clubId: string) {
+  const session = await db.query.playSessions.findFirst({
+    where: and(eq(playSessions.id, sessionId), eq(playSessions.clubId, clubId)),
+  });
+  if (!session) throw new Error('Match not found');
 }
 
 export type CreateMatchInput = {
@@ -153,12 +169,18 @@ export type CreateMatchInput = {
 };
 
 export async function createMatch(input: CreateMatchInput) {
-  await requireAdmin();
-  await validatePlayers(input.teamAP1, input.teamAP2, input.teamBP1, input.teamBP2);
+  const { clubId } = await requireAdmin();
+  await validatePlayers(
+    clubId,
+    input.teamAP1,
+    input.teamAP2,
+    input.teamBP1,
+    input.teamBP2,
+  );
   const scoreA = input.scoreA ?? null;
   const scoreB = input.scoreB ?? null;
   validateScores(scoreA, scoreB);
-  const sessionId = await findOrCreateSession(input.playDate);
+  const sessionId = await findOrCreateSession(clubId, input.playDate);
   if (isIncompleteScore(scoreA, scoreB)) {
     await validateNoPendingPlayerOverlap({
       sessionId,
@@ -178,6 +200,7 @@ export async function createMatch(input: CreateMatchInput) {
     })
     .returning();
   revalidatePath('/');
+  revalidatePath('/matches');
   revalidatePath('/stats');
   return created;
 }
@@ -192,11 +215,12 @@ export type UpdateMatchInput = Partial<{
 }> & { id: string };
 
 export async function updateMatch(input: UpdateMatchInput) {
-  await requireAdmin();
+  const { clubId } = await requireAdmin();
   const current = await db.query.matches.findFirst({
     where: eq(matches.id, input.id),
   });
   if (!current) throw new Error('Match not found');
+  await assertSessionInClub(current.sessionId, clubId);
   const next = {
     teamAP1: input.teamAP1 ?? current.teamAP1,
     teamAP2: input.teamAP2 ?? current.teamAP2,
@@ -205,7 +229,13 @@ export async function updateMatch(input: UpdateMatchInput) {
     scoreA: hasOwn(input, 'scoreA') ? input.scoreA! : current.scoreA,
     scoreB: hasOwn(input, 'scoreB') ? input.scoreB! : current.scoreB,
   };
-  await validatePlayers(next.teamAP1, next.teamAP2, next.teamBP1, next.teamBP2);
+  await validatePlayers(
+    clubId,
+    next.teamAP1,
+    next.teamAP2,
+    next.teamBP1,
+    next.teamBP2,
+  );
   validateScores(next.scoreA, next.scoreB);
   if (isIncompleteScore(next.scoreA, next.scoreB)) {
     await validateNoPendingPlayerOverlap({
@@ -219,6 +249,7 @@ export async function updateMatch(input: UpdateMatchInput) {
     .set({ ...next, updatedAt: new Date() })
     .where(eq(matches.id, input.id));
   revalidatePath('/');
+  revalidatePath('/matches');
   revalidatePath('/stats');
 }
 
@@ -228,12 +259,13 @@ export type CreateMemberInput = {
 };
 
 export async function createMember(input: CreateMemberInput) {
-  await requireAdmin();
+  const { clubId } = await requireAdmin();
   const name = cleanName(input.name);
   const avatar = cleanAvatar(input.avatar);
   const id = await uniqueMemberId(name);
   await db.insert(members).values({
     id,
+    clubId,
     name,
     avatar,
     isActive: true,
@@ -248,13 +280,18 @@ export type UpdateMemberInput = {
 };
 
 export async function updateMember(input: UpdateMemberInput) {
-  await requireAdmin();
+  const { clubId } = await requireAdmin();
+  const current = await db.query.members.findFirst({
+    where: and(eq(members.id, input.id), eq(members.clubId, clubId)),
+  });
+  if (!current) throw new Error('Player not found');
   const name = cleanName(input.name);
   const avatar = cleanAvatar(input.avatar);
   await db
     .insert(members)
     .values({
       id: input.id,
+      clubId,
       name,
       avatar,
       isActive: true,
@@ -264,6 +301,7 @@ export async function updateMember(input: UpdateMemberInput) {
       target: members.id,
       set: {
         name,
+        clubId,
         avatar,
         isActive: true,
         updatedAt: new Date(),
@@ -276,14 +314,15 @@ export async function updateMemberPlaying(input: {
   id: string;
   isPlaying: boolean;
 }) {
-  await requireAdmin();
-  const current = (await loadMembers()).find((member) => member.id === input.id);
+  const { clubId } = await requireAdmin();
+  const current = (await loadMembers(clubId)).find((member) => member.id === input.id);
   if (!current) throw new Error('Player not found');
 
   await db
     .insert(members)
     .values({
       id: current.id,
+      clubId,
       name: current.name,
       avatar: current.avatar ?? null,
       isActive: true,
@@ -294,6 +333,7 @@ export async function updateMemberPlaying(input: {
       target: members.id,
       set: {
         isActive: true,
+        clubId,
         isPlaying: input.isPlaying,
         updatedAt: new Date(),
       },
@@ -306,8 +346,8 @@ export type DayTeamInput = {
   playerB: string | null;
 };
 
-async function validateTeamPlayers(teams: DayTeamInput[]) {
-  const validIds = new Set((await loadMembers()).map((member) => member.id));
+async function validateTeamPlayers(clubId: string, teams: DayTeamInput[]) {
+  const validIds = new Set((await loadMembers(clubId)).map((member) => member.id));
   const used = new Set<string>();
 
   for (const team of teams) {
@@ -327,9 +367,9 @@ export async function updateDayTeams(input: {
   playDate: string;
   teams: DayTeamInput[];
 }) {
-  await requireAdmin();
-  await validateTeamPlayers(input.teams);
-  const sessionId = await findOrCreateSession(input.playDate);
+  const { clubId } = await requireAdmin();
+  await validateTeamPlayers(clubId, input.teams);
+  const sessionId = await findOrCreateSession(clubId, input.playDate);
 
   await db.delete(dayTeams).where(eq(dayTeams.sessionId, sessionId));
   const rows = input.teams
@@ -346,11 +386,16 @@ export async function updateDayTeams(input: {
     await db.insert(dayTeams).values(rows);
   }
   revalidatePath('/');
+  revalidatePath('/matches');
   revalidatePath('/players');
 }
 
 export async function deleteMember(input: { id: string }) {
-  await requireAdmin();
+  const { clubId } = await requireAdmin();
+  const current = await db.query.members.findFirst({
+    where: and(eq(members.id, input.id), eq(members.clubId, clubId)),
+  });
+  if (!current) throw new Error('Player not found');
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(matches)
@@ -371,6 +416,7 @@ export async function deleteMember(input: { id: string }) {
       .insert(members)
       .values({
         id: input.id,
+        clubId,
         name: input.id,
         isActive: false,
         isPlaying: false,
@@ -380,21 +426,29 @@ export async function deleteMember(input: { id: string }) {
         target: members.id,
         set: {
           isActive: false,
+          clubId,
           isPlaying: false,
           updatedAt: new Date(),
         },
       });
   } else {
-    await db.delete(members).where(eq(members.id, input.id));
+    await db
+      .delete(members)
+      .where(and(eq(members.id, input.id), eq(members.clubId, clubId)));
   }
   revalidateRosterPaths();
 }
 
 export async function deleteMatch(input: { id: string; playDate: string }) {
-  await requireAdmin();
+  const { clubId } = await requireAdmin();
+  const current = await db.query.matches.findFirst({
+    where: eq(matches.id, input.id),
+  });
+  if (!current) throw new Error('Match not found');
+  await assertSessionInClub(current.sessionId, clubId);
   await db.delete(matches).where(eq(matches.id, input.id));
   const sessionRow = await db.query.playSessions.findFirst({
-    where: eq(playSessions.playDate, input.playDate),
+    where: and(eq(playSessions.clubId, clubId), eq(playSessions.playDate, input.playDate)),
   });
   if (sessionRow) {
     const [{ count: matchCount }] = await db
@@ -410,5 +464,6 @@ export async function deleteMatch(input: { id: string; playDate: string }) {
     }
   }
   revalidatePath('/');
+  revalidatePath('/matches');
   revalidatePath('/stats');
 }

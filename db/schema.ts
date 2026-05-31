@@ -7,25 +7,65 @@ import {
   text,
   timestamp,
   index,
+  uniqueIndex,
   check,
   boolean,
 } from 'drizzle-orm/pg-core';
 
-export const members = pgTable('members', {
-  id: text('id').primaryKey(),
+export const clubs = pgTable('clubs', {
+  id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
-  avatar: text('avatar'),
-  isActive: boolean('is_active').notNull().default(true),
-  isPlaying: boolean('is_playing').notNull().default(true),
+  accessCode: text('access_code').notNull().unique(),
+  isDemo: boolean('is_demo').notNull().default(false),
+  demoResetDate: date('demo_reset_date'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const playSessions = pgTable('play_sessions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  playDate: date('play_date').notNull().unique(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const clubAdmins = pgTable(
+  'club_admins',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clubId: uuid('club_id')
+      .notNull()
+      .references(() => clubs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    phone: text('phone').notNull().unique(),
+    passwordHash: text('password_hash').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('club_admins_club_idx').on(t.clubId)],
+);
+
+export const members = pgTable(
+  'members',
+  {
+    id: text('id').primaryKey(),
+    clubId: uuid('club_id').references(() => clubs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    avatar: text('avatar'),
+    isActive: boolean('is_active').notNull().default(true),
+    isPlaying: boolean('is_playing').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('members_club_idx').on(t.clubId)],
+);
+
+export const playSessions = pgTable(
+  'play_sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clubId: uuid('club_id').references(() => clubs.id, { onDelete: 'cascade' }),
+    playDate: date('play_date').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('play_sessions_club_idx').on(t.clubId),
+    uniqueIndex('play_sessions_club_date_unique').on(t.clubId, t.playDate),
+  ],
+);
 
 export const dayTeams = pgTable(
   'day_teams',
@@ -83,6 +123,10 @@ export const matches = pgTable(
 );
 
 export type PlaySession = typeof playSessions.$inferSelect;
+export type Club = typeof clubs.$inferSelect;
+export type NewClub = typeof clubs.$inferInsert;
+export type ClubAdmin = typeof clubAdmins.$inferSelect;
+export type NewClubAdmin = typeof clubAdmins.$inferInsert;
 export type DayTeam = typeof dayTeams.$inferSelect;
 export type NewDayTeam = typeof dayTeams.$inferInsert;
 export type Match = typeof matches.$inferSelect;
